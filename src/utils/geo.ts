@@ -59,30 +59,72 @@ export function getHeadingName(heading: number | null): string {
   return dirs[index];
 }
 
-// A simple exponential moving average filter for smoothing speed
-export class SpeedSmoother {
-  private value: number | null = null;
-  private alpha: number = 0.3; // 0 < alpha <= 1 (smaller = smoother but slower response)
+/**
+ * Below this a GPS reading is noise, not motion: a phone sitting still on a
+ * stationary bike still reports a few tenths of a m/s. ~3.2 km/h.
+ */
+export const STOPPED_THRESHOLD = 0.9;
 
-  constructor(alpha: number = 0.3) {
-    this.alpha = alpha;
+/**
+ * Speed filter tuned to feel like a real dashboard rather than a rolling
+ * average.
+ *
+ * A symmetric EMA is wrong here: it makes the display coast for seconds after
+ * the rider has actually stopped, which reads as a broken instrument. So the
+ * filter is asymmetric (slowing down is shown almost immediately, speeding up
+ * is smoothed just enough to take the jitter off) and it snaps hard to zero
+ * instead of decaying towards it.
+ */
+export class SpeedSmoother {
+  private value = 0;
+  private initialised = false;
+
+  /** Braking must be visible at once. */
+  private readonly fallAlpha: number;
+  /** Acceleration is filtered a little, only to kill jitter. */
+  private readonly riseAlpha: number;
+
+  constructor(riseAlpha = 0.7, fallAlpha = 0.8) {
+    this.riseAlpha = riseAlpha;
+    this.fallAlpha = fallAlpha;
   }
 
   update(newValue: number): number {
-    if (this.value === null) {
-      this.value = newValue;
-    } else {
-      this.value = this.alpha * newValue + (1 - this.alpha) * this.value;
+    let raw = newValue;
+    if (!Number.isFinite(raw) || raw < 0) raw = 0;
+
+    // Stopped is a state, not a value to converge on.
+    if (raw < STOPPED_THRESHOLD) {
+      this.value = 0;
+      this.initialised = true;
+      return 0;
     }
-    // Snap to 0 if very small to avoid lingering 0.1 km/h
-    if (this.value < 0.3) { // less than ~1km/h
-       return 0;
+
+    if (!this.initialised) {
+      this.value = raw;
+      this.initialised = true;
+      return raw;
     }
+
+    const alpha = raw < this.value ? this.fallAlpha : this.riseAlpha;
+    this.value = alpha * raw + (1 - alpha) * this.value;
     return this.value;
   }
-  
+
+  /** Pull the reading towards zero when fixes stop arriving. */
+  decay(factor: number): number {
+    this.value *= factor;
+    if (this.value < STOPPED_THRESHOLD) this.value = 0;
+    return this.value;
+  }
+
+  get current(): number {
+    return this.value;
+  }
+
   reset() {
-    this.value = null;
+    this.value = 0;
+    this.initialised = false;
   }
 }
 

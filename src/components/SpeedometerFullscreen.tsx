@@ -8,6 +8,7 @@ import { useTrip } from '../contexts/TripContext';
 import { convertSpeed, distanceParts, unitLabel } from '../utils/geo';
 import { formatTime } from '../utils/format';
 import { HazardAhead } from '../types';
+import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
 
 const HAZARD_LABEL: Record<string, string> = {
   bump: 'Lombada',
@@ -144,6 +145,8 @@ export default function SpeedometerFullscreen() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const currentSpeed = convertSpeed(currentSpeedMs, settings.unit);
+  // Sweeps between the 1 Hz fixes so the digits climb instead of teleporting.
+  const shownSpeed = useAnimatedSpeed(currentSpeed);
   const speedUnit = unitLabel(settings.unit);
   const isKmh = settings.unit === 'kmh';
   const dist = distanceParts(activeTrip?.distance ?? 0, settings.unit);
@@ -233,7 +236,7 @@ export default function SpeedometerFullscreen() {
           )}
           style={{ fontSize: 'clamp(5rem, min(52vw, 58vh), 26rem)' }}
         >
-          {Math.floor(currentSpeed)}
+          {shownSpeed}
         </span>
         <span
           className={clsx(

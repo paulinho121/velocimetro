@@ -24,10 +24,13 @@ interface GpsContextValue {
 
 const GpsContext = createContext<GpsContextValue | undefined>(undefined);
 
+// `maximumAge` is deliberately tiny even in the battery-saving modes: a cached
+// fix is a stale speed, and a speedometer showing where you were two seconds
+// ago is worse than useless.
 const ACCURACY_OPTIONS = {
   high: { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
-  balanced: { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
-  low: { enableHighAccuracy: false, maximumAge: 10000, timeout: 30000 },
+  balanced: { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 },
+  low: { enableHighAccuracy: false, maximumAge: 2000, timeout: 30000 },
 } as const;
 
 export function GpsProvider({ children }: { children: React.ReactNode }) {

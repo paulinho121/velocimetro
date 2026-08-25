@@ -22,6 +22,7 @@ import {
 import clsx from 'clsx';
 import { HazardAhead } from '../types';
 import { requestAppFullscreen } from '../components/SpeedometerFullscreen';
+import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: 'Aguardando',
@@ -205,6 +206,8 @@ export default function SpeedometerView() {
   const { next: hazardAhead } = useHazards();
 
   const currentSpeed = convertSpeed(currentSpeedMs, settings.unit);
+  // Sweeps between the 1 Hz fixes so the digits climb instead of teleporting.
+  const shownSpeed = useAnimatedSpeed(currentSpeed);
   const speedUnit = unitLabel(settings.unit);
   const isSpeeding =
     settings.speedAlert !== null && currentSpeed > settings.speedAlert;
@@ -337,7 +340,7 @@ export default function SpeedometerView() {
               )}
               style={{ fontSize: 'clamp(4rem, min(34vw, 24vh), 14rem)' }}
             >
-              {Math.floor(currentSpeed)}
+              {shownSpeed}
             </span>
             <span
               className={clsx(

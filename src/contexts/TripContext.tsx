@@ -35,6 +35,16 @@ const PATH_MIN_DISTANCE = 8;
 const PATH_MAX_INTERVAL = 10000;
 /** Hard ceiling on stored points; a phone should not hold an unbounded array. */
 const PATH_MAX_POINTS = 5000;
+/**
+ * After this long without a fix the reading is no longer trustworthy. Kept
+ * generous so a handset that only reports every couple of seconds does not see
+ * its speed sag between perfectly good fixes.
+ */
+const FIX_STALE_AFTER = 3000;
+/** How often the stale-fix watchdog runs. */
+const WATCHDOG_MS = 400;
+/** Fraction retained per watchdog tick once the signal is gone. */
+const STALE_DECAY = 0.6;
 
 export function TripProvider({ children }: { children: React.ReactNode }) {
   const { location, status } = useGps();
@@ -48,7 +58,7 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
   const lastTickRef = useRef<number>(0);
   const lastStoredPointRef = useRef<LocationPoint | null>(null);
   const speedRef = useRef(0);
-  const smootherRef = useRef(new SpeedSmoother(0.4));
+  const smootherRef = useRef(new SpeedSmoother());
 
   // Everything below is computed *outside* the setState updater. React may call
   // an updater more than once, so an updater that mutates refs (or reads a ref
@@ -148,6 +158,23 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
 
     lastPointRef.current = location;
   }, [location, isActive, isPaused, status]);
+
+  // A frozen readout is worse than a falling one: losing the signal in a tunnel
+  // would otherwise leave 60 km/h on screen while the bike is parked. Pull the
+  // number down whenever fixes stop arriving.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const lastFix = lastPointRef.current?.timestamp ?? 0;
+      if (!lastFix || Date.now() - lastFix < FIX_STALE_AFTER) return;
+      if (speedRef.current === 0) return;
+
+      const decayed = smootherRef.current.decay(STALE_DECAY);
+      speedRef.current = decayed;
+      setCurrentSpeedMs(decayed);
+    }, WATCHDOG_MS);
+
+    return () => window.clearInterval(id);
+  }, []);
 
   // Keeps the clock honest while standing still or when the GPS stops
   // delivering fixes. Reads speed from a ref so the interval is not rebuilt on
