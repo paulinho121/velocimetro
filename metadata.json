@@ -1,0 +1,10 @@
+{
+  "name": "Velox GPS",
+  "description": "Painel digital de velocidade baseado em GPS.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
