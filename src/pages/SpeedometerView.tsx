@@ -23,6 +23,7 @@ import clsx from 'clsx';
 import { HazardAhead } from '../types';
 import { requestAppFullscreen } from '../components/SpeedometerFullscreen';
 import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
+import { useClock } from '../hooks/useClock';
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: 'Aguardando',
@@ -204,6 +205,7 @@ export default function SpeedometerView() {
   const { status, location, accuracy, errorMessage, retry } = useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
+  const clock = useClock();
 
   const currentSpeed = convertSpeed(currentSpeedMs, settings.unit);
   // Sweeps between the 1 Hz fixes so the digits climb instead of teleporting.
@@ -263,13 +265,17 @@ export default function SpeedometerView() {
           </div>
         </div>
 
+        {/* The clock earns this slot more than a decorative subtitle does. */}
         <div className="flex shrink-0 flex-col items-center leading-none">
-          <span className="text-base font-black italic tracking-tighter text-cyan-400">
+          <span className="text-[11px] font-black italic tracking-tighter text-cyan-400">
             VELOX
           </span>
-          <span className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-            Speedometer
-          </span>
+          <time
+            dateTime={clock}
+            className="text-xl font-black tabular-nums tracking-tight text-white"
+          >
+            {clock}
+          </time>
         </div>
 
         <button

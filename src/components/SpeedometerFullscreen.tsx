@@ -9,6 +9,7 @@ import { convertSpeed, distanceParts, unitLabel } from '../utils/geo';
 import { formatTime } from '../utils/format';
 import { HazardAhead } from '../types';
 import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
+import { useClock } from '../hooks/useClock';
 
 const HAZARD_LABEL: Record<string, string> = {
   bump: 'Lombada',
@@ -141,6 +142,7 @@ export default function SpeedometerFullscreen() {
   const { status } = useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
+  const clock = useClock();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -191,27 +193,38 @@ export default function SpeedometerFullscreen() {
         isSpeeding ? 'bg-[#1A0508]' : 'bg-[#050A15]',
       )}
     >
-      {/* ---- Top strip: status + exit ---- */}
+      {/* ---- Top strip: status + clock + exit ---- */}
+      {/* The two flanking groups are flex-1 so the clock stays optically
+          centred whatever the status text says. */}
       <div className="flex shrink-0 items-center justify-between gap-3 px-3 py-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={clsx(
-              'h-2.5 w-2.5 rounded-full',
+              'h-2.5 w-2.5 shrink-0 rounded-full',
               STATUS_DOT[status] ?? STATUS_DOT.waiting,
             )}
           />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white/55">
+          <span className="truncate text-[10px] font-bold uppercase tracking-widest text-white/55">
             {isFullscreen ? 'Tela cheia' : 'Velocímetro'}
           </span>
         </div>
 
-        <button
-          onClick={toggleDrivingMode}
-          aria-label="Sair do modo velocímetro"
-          className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white/70 active:bg-white/20"
+        <time
+          dateTime={clock}
+          className="shrink-0 text-[clamp(1.25rem,5vmin,2.25rem)] font-black leading-none tracking-tight tabular-nums text-white/80"
         >
-          <Minimize2 className="h-5 w-5" />
-        </button>
+          {clock}
+        </time>
+
+        <div className="flex flex-1 justify-end">
+          <button
+            onClick={toggleDrivingMode}
+            aria-label="Sair do modo velocímetro"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white/70 active:bg-white/20"
+          >
+            <Minimize2 className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* ---- Hazard warning ---- */}
