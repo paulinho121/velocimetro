@@ -13,6 +13,7 @@ import SetupScreen from './components/SetupScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import SpeedometerFullscreen from './components/SpeedometerFullscreen';
 import { HazardProvider } from './contexts/HazardContext';
+import ResumeTripPrompt from './components/ResumeTripPrompt';
 
 export type Route = 'speedometer' | 'trip' | 'map' | 'history' | 'settings';
 
@@ -63,6 +64,10 @@ function AppContent() {
 
   return (
     <SetupScreen onComplete={() => {}}>
+      {/* Sits above everything: an unfinished ride needs a decision before the
+          rider starts a new one. */}
+      <ResumeTripPrompt />
+
       {/* Fullscreen speedometer replaces the shell entirely - no nav, no map,
           nothing but speed and what is coming up on the road. */}
       {isDrivingMode ? (

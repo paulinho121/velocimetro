@@ -19,7 +19,7 @@ function SvgMap({ path }: { path: LocationPoint[] }) {
 
   if (path.length < 2) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-white/30">
+      <div className="flex flex-col items-center justify-center h-full text-white/50">
         <MapIcon className="w-12 h-12 mb-2 opacity-20" />
         <p>Poucos dados para desenhar o mapa</p>
       </div>
@@ -79,7 +79,7 @@ export default function MapView() {
           </div>
         )}
       </div>
-      <p className="mt-3 shrink-0 text-center text-[9px] font-bold uppercase tracking-widest text-white/40">
+      <p className="mt-3 shrink-0 text-center text-[11px] font-bold uppercase tracking-widest text-white/55">
         O mapa exibe o rastro do seu GPS no plano cartesiano.
       </p>
     </div>

@@ -10,28 +10,13 @@ import { HazardAhead, LocationPoint, RoadHazard } from '../types';
 import { useGps } from './GpsContext';
 import { useSettings } from './SettingsContext';
 import { useTrip } from './TripContext';
-import {
-  angularDifference,
-  calculateBearing,
-  calculateDistance,
-} from '../utils/geo';
+import { calculateDistance } from '../utils/geo';
+import { resolveHeading, selectNextHazard } from '../utils/hazards';
 
 export type HazardStatus = 'off' | 'idle' | 'loading' | 'ready' | 'error';
 
 /** Refresh the cell once the driver has moved this far from the last fetch. */
 const REFETCH_DISTANCE = 2000;
-/** Ignore anything further out than this; it is not actionable yet. */
-const CONSIDER_RADIUS = 1200;
-/** A hazard counts as "ahead" within this cone of the direction of travel. */
-const AHEAD_CONE = 50;
-/** Warn this many seconds before arrival... */
-const LEAD_SECONDS = 9;
-/** ...but never later than this, so it still works at walking pace. */
-const MIN_ALERT_DISTANCE = 120;
-
-function alertDistanceFor(speedMs: number): number {
-  return Math.max(MIN_ALERT_DISTANCE, speedMs * LEAD_SECONDS);
-}
 
 /** Short rising beep for cameras, single low beep for bumps. */
 function playAlertTone(kind: 'bump' | 'camera') {
@@ -145,58 +130,10 @@ export function HazardProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // GPS heading is null while stationary and on some hardware, so fall back
-    // to the bearing between the last two fixes.
-    let heading: number | null =
-      location.heading != null && !Number.isNaN(location.heading)
-        ? location.heading
-        : null;
-    const prev = prevPointRef.current;
-    if (heading === null && prev) {
-      const travelled = calculateDistance(
-        prev.lat,
-        prev.lng,
-        location.lat,
-        location.lng,
-      );
-      // Under a few metres the bearing is just GPS noise.
-      if (travelled > 5) {
-        heading = calculateBearing(prev.lat, prev.lng, location.lat, location.lng);
-      }
-    }
+    const heading = resolveHeading(location, prevPointRef.current);
     prevPointRef.current = location;
 
-    if (heading === null) {
-      setNext(null);
-      return;
-    }
-
-    let best: HazardAhead | null = null;
-    for (const hazard of hazards) {
-      const distance = calculateDistance(
-        location.lat,
-        location.lng,
-        hazard.lat,
-        hazard.lng,
-      );
-      if (distance > CONSIDER_RADIUS) continue;
-
-      const bearing = calculateBearing(
-        location.lat,
-        location.lng,
-        hazard.lat,
-        hazard.lng,
-      );
-      if (angularDifference(bearing, heading) > AHEAD_CONE) continue;
-
-      if (!best || distance < best.distance) {
-        best = {
-          hazard,
-          distance,
-          isAlerting: distance <= alertDistanceFor(currentSpeedMs),
-        };
-      }
-    }
+    const best = selectNextHazard(location, heading, hazards, currentSpeedMs);
 
     setNext(best);
 

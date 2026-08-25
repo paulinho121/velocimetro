@@ -101,14 +101,14 @@ export default function TripView() {
             />
           </div>
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-white/55">
               Direção
             </div>
             <div className="text-2xl font-black">{getHeadingName(heading)}</div>
           </div>
         </div>
         <div className="min-w-0 text-right">
-          <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/55">
             Distância total
           </div>
           <div className="truncate text-2xl font-black text-cyan-400 drop-shadow-[0_0_10px_rgba(0,229,255,0.2)]">
@@ -128,9 +128,9 @@ export default function TripView() {
           >
             <div className="mb-1.5 flex items-center gap-1.5">
               <stat.icon
-                className={`h-3.5 w-3.5 shrink-0 ${stat.color || 'text-white/40'}`}
+                className={`h-3.5 w-3.5 shrink-0 ${stat.color || 'text-white/55'}`}
               />
-              <span className="truncate text-[9px] font-bold uppercase tracking-widest text-white/40">
+              <span className="truncate text-[11px] font-bold uppercase tracking-widest text-white/55">
                 {stat.label}
               </span>
             </div>

@@ -11,6 +11,20 @@ const SETTINGS_STORE = localforage.createInstance({
   storeName: 'settings',
 });
 
+/**
+ * The in-progress ride, checkpointed separately from the finished history.
+ *
+ * A phone locking, the browser reclaiming the tab or the rider switching apps
+ * all tear down the page without warning. Keeping the live trip only in React
+ * state meant every one of those threw away the whole ride.
+ */
+const ACTIVE_STORE = localforage.createInstance({
+  name: 'Velox',
+  storeName: 'active_trip',
+});
+
+const ACTIVE_KEY = 'in_progress';
+
 export const DEFAULT_SETTINGS: Settings = {
   unit: 'kmh',
   theme: 'auto',
@@ -54,4 +68,26 @@ export async function deleteTrip(id: string): Promise<void> {
 
 export async function clearAllTrips(): Promise<void> {
   await TRIPS_STORE.clear();
+}
+
+export interface ActiveTripSnapshot {
+  trip: Trip;
+  isPaused: boolean;
+  savedAt: number;
+}
+
+export async function saveActiveTrip(
+  snapshot: ActiveTripSnapshot,
+): Promise<void> {
+  await ACTIVE_STORE.setItem(ACTIVE_KEY, snapshot);
+}
+
+export async function getActiveTrip(): Promise<ActiveTripSnapshot | null> {
+  const saved = await ACTIVE_STORE.getItem<ActiveTripSnapshot>(ACTIVE_KEY);
+  if (!saved?.trip) return null;
+  return saved;
+}
+
+export async function clearActiveTrip(): Promise<void> {
+  await ACTIVE_STORE.removeItem(ACTIVE_KEY);
 }

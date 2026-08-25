@@ -76,7 +76,7 @@ function Chip({
     <div className="flex flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-xl">
       <Icon className="h-4 w-4 shrink-0 text-cyan-400" />
       <div className="flex min-w-0 flex-col leading-tight">
-        <span className="text-[8px] font-bold uppercase tracking-widest text-white/40">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-white/55">
           {label}
         </span>
         <span className="truncate text-sm font-black text-white">
@@ -171,7 +171,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-xl">
-      <span className="mb-0.5 block text-[8px] font-bold uppercase tracking-widest text-white/40">
+      <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-widest text-white/55">
         {label}
       </span>
       <div className="flex items-baseline gap-1">
@@ -183,7 +183,7 @@ function Stat({
         >
           {value}
         </span>
-        {suffix && <span className="text-[10px] text-white/40">{suffix}</span>}
+        {suffix && <span className="text-[10px] text-white/55">{suffix}</span>}
       </div>
     </div>
   );
@@ -256,7 +256,7 @@ export default function SpeedometerView() {
               {STATUS_TEXT[status] ?? 'Desconhecido'}
             </span>
             {accuracy !== null && (
-              <span className="text-[9px] text-white/40">
+              <span className="text-[11px] text-white/55">
                 ± {accuracy.toFixed(0)} m
               </span>
             )}
@@ -267,7 +267,7 @@ export default function SpeedometerView() {
           <span className="text-base font-black italic tracking-tighter text-cyan-400">
             VELOX
           </span>
-          <span className="text-[7px] uppercase tracking-[0.3em] text-white/40">
+          <span className="text-[10px] uppercase tracking-[0.3em] text-white/55">
             Speedometer
           </span>
         </div>
@@ -424,7 +424,7 @@ export default function SpeedometerView() {
           </button>
         </div>
 
-        <p className="mt-2 text-center text-[9px] leading-tight text-white/30">
+        <p className="mt-2 text-center text-[11px] leading-tight text-white/50">
           Não opere o dispositivo em movimento. Concentre-se na via.
         </p>
       </div>

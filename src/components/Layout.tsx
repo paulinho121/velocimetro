@@ -42,7 +42,7 @@ export default function Layout({
                 aria-label={item.label}
                 aria-current={active ? 'page' : undefined}
                 className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-colors active:bg-white/5 ${
-                  active ? 'text-cyan-400' : 'text-white/40'
+                  active ? 'text-cyan-400' : 'text-white/55'
                 }`}
               >
                 {active && (
@@ -51,7 +51,7 @@ export default function Layout({
                 <item.icon
                   className={`h-5 w-5 shrink-0 ${active ? 'stroke-[2.5px]' : 'stroke-2'}`}
                 />
-                <span className="max-w-full truncate px-0.5 text-[9px] font-bold uppercase tracking-wider">
+                <span className="max-w-full truncate px-0.5 text-[11px] font-bold uppercase tracking-wider">
                   {item.label}
                 </span>
               </button>

@@ -48,7 +48,7 @@ export default function SettingsView() {
         
         {/* Unidade */}
         <section>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 ml-2">Unidade de Velocidade</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/55 mb-3 ml-2">Unidade de Velocidade</h3>
           <div className="bg-white/5 rounded-3xl border border-white/10 backdrop-blur-xl overflow-hidden">
             {[
               { id: 'kmh', label: 'km/h' },
@@ -71,7 +71,7 @@ export default function SettingsView() {
 
         {/* Tema */}
         <section>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 ml-2">Tema Visual</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/55 mb-3 ml-2">Tema Visual</h3>
           <div className="bg-white/5 rounded-3xl border border-white/10 backdrop-blur-xl overflow-hidden">
             {[
               { id: 'auto', label: 'Automático (Sistema)' },
@@ -94,7 +94,7 @@ export default function SettingsView() {
 
         {/* Alertas */}
         <section>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 ml-2">Alertas</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/55 mb-3 ml-2">Alertas</h3>
           <div className="bg-white/5 rounded-3xl border border-white/10 backdrop-blur-xl p-5">
             <div className="flex justify-between items-center mb-4">
               <span className="font-bold text-lg">Alerta de Velocidade</span>
@@ -124,14 +124,14 @@ export default function SettingsView() {
 
         {/* Alertas na via */}
         <section>
-          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/40">Alertas na via</h3>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/55">Alertas na via</h3>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 flex-col pr-2">
                 <span className="flex items-center gap-2 text-base font-bold">
                   <TriangleAlert className="h-5 w-5 shrink-0 text-amber-400" /> Lombadas e radares
                 </span>
-                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/40">
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/55">
                   Avisa o que vem pela frente usando dados do OpenStreetMap
                 </span>
               </div>
@@ -151,7 +151,7 @@ export default function SettingsView() {
                 <span className="flex items-center gap-2 text-base font-bold">
                   <Volume2 className="h-5 w-5 shrink-0 text-cyan-400" /> Aviso sonoro
                 </span>
-                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/40">
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/55">
                   Toca um bipe ao se aproximar
                 </span>
               </div>
@@ -167,7 +167,7 @@ export default function SettingsView() {
             </div>
 
             <div className="mt-4 border-t border-white/10 pt-4">
-              <p className="text-[10px] leading-relaxed text-white/40">
+              <p className="text-[10px] leading-relaxed text-white/55">
                 Dados colaborativos do OpenStreetMap (ODbL). Podem estar
                 incompletos ou desatualizados — sempre siga a sinalização da via.
               </p>
@@ -183,7 +183,7 @@ export default function SettingsView() {
 
         {/* Precisão do GPS */}
         <section>
-          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/40">Precisão do GPS</h3>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/55">Precisão do GPS</h3>
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl">
             {[
               { id: 'high', label: 'Alta', hint: 'Mais precisa, consome mais bateria' },
@@ -203,7 +203,7 @@ export default function SettingsView() {
                 />
                 <span className="flex min-w-0 flex-col">
                   <span className="text-base font-bold">{g.label}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-white/40">{g.hint}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-white/55">{g.hint}</span>
                 </span>
               </label>
             ))}
@@ -212,14 +212,14 @@ export default function SettingsView() {
 
         {/* Demo Mode */}
         <section>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 ml-2">Desenvolvimento</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/55 mb-3 ml-2">Desenvolvimento</h3>
           <div className="bg-white/5 rounded-3xl border border-white/10 backdrop-blur-xl p-5">
             <div className="flex justify-between items-center">
               <div className="flex flex-col pr-4">
                 <span className="font-bold text-lg text-amber-400 flex items-center gap-2">
                   <PlaySquare className="w-5 h-5" /> Modo Demonstração
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-white/40 mt-1">Simula movimento sem usar o GPS real.</span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-white/55 mt-1">Simula movimento sem usar o GPS real.</span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input 
@@ -236,7 +236,7 @@ export default function SettingsView() {
 
         {/* Dados */}
         <section>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 ml-2">Dados e Histórico</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/55 mb-3 ml-2">Dados e Histórico</h3>
           <div className="flex flex-col gap-3">
             <button 
               onClick={handleExport}

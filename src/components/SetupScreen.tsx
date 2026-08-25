@@ -114,7 +114,7 @@ export default function SetupScreen({
                   </button>
                 ))}
               </div>
-              <p className="text-center text-[10px] font-bold uppercase leading-relaxed tracking-wider text-white/40">
+              <p className="text-center text-[10px] font-bold uppercase leading-relaxed tracking-wider text-white/55">
                 Use o aplicativo somente quando for seguro interagir com o
                 dispositivo. Não opere o celular enquanto estiver conduzindo.
               </p>
@@ -126,7 +126,7 @@ export default function SetupScreen({
               </button>
               <button
                 onClick={() => setStep(1)}
-                className="text-[11px] font-bold uppercase tracking-widest text-white/40 active:text-white"
+                className="text-[11px] font-bold uppercase tracking-widest text-white/55 active:text-white"
               >
                 Voltar
               </button>

@@ -200,7 +200,7 @@ export default function SpeedometerFullscreen() {
               STATUS_DOT[status] ?? STATUS_DOT.waiting,
             )}
           />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-white/55">
             {isFullscreen ? 'Tela cheia' : 'Velocímetro'}
           </span>
         </div>
@@ -253,18 +253,18 @@ export default function SpeedometerFullscreen() {
       <div className="flex shrink-0 items-center gap-3 px-3 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="flex min-w-0 flex-col leading-tight">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-white/50">
               Distância
             </span>
             <span className="truncate text-lg font-black tabular-nums text-white/80">
               {dist.value}
-              <span className="ml-1 text-xs font-normal text-white/40">
+              <span className="ml-1 text-xs font-normal text-white/55">
                 {dist.label}
               </span>
             </span>
           </div>
           <div className="flex min-w-0 flex-col leading-tight">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-white/50">
               Tempo
             </span>
             <span className="truncate text-lg font-black tabular-nums text-white/80">

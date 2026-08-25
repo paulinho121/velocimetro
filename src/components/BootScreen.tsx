@@ -15,7 +15,7 @@ export default function BootScreen() {
         <h1 className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-3xl font-black tracking-widest text-transparent sm:text-4xl">
           VELOX
         </h1>
-        <p className="mt-2 text-[10px] uppercase tracking-[0.3em] text-white/40">
+        <p className="mt-2 text-[10px] uppercase tracking-[0.3em] text-white/55">
           GPS Speedometer
         </p>
       </motion.div>

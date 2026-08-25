@@ -49,7 +49,7 @@ export default function HistoryView() {
             
             <div className="grid grid-cols-3 gap-2 mb-4">
               <div className="flex min-w-0 flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Distância</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/55">Distância</span>
                 <span className="truncate text-base font-bold">
                   {distanceParts(trip.distance, settings.unit).value}
                   <span className="ml-1 text-xs font-normal text-white/50">
@@ -58,11 +58,11 @@ export default function HistoryView() {
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-white/40 tracking-widest">Tempo</span>
+                <span className="text-[10px] uppercase font-bold text-white/55 tracking-widest">Tempo</span>
                 <span className="truncate text-base font-bold tabular-nums">{formatTime(trip.movingTime + trip.stoppedTime)}</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-white/40 tracking-widest">Média</span>
+                <span className="text-[10px] uppercase font-bold text-white/55 tracking-widest">Média</span>
                 <span className="truncate text-base font-bold text-cyan-400">
                   {convertSpeed(trip.averageSpeed, settings.unit).toFixed(1)}
                   <span className="ml-1 text-xs font-normal text-white/50">{unitLabel(settings.unit)}</span>
@@ -71,7 +71,7 @@ export default function HistoryView() {
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t border-white/10">
-              <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-white/40 tracking-widest">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-white/55 tracking-widest">
                 <MapPin className="w-4 h-4 text-cyan-400" />
                 {trip.path.length} pontos
               </div>
