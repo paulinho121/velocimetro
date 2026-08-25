@@ -1,1 +1,112 @@
 @import "tailwindcss";
+
+@theme {
+  --color-velox-bg: #050a15;
+  --color-velox-accent: #00e5ff;
+}
+
+/* ---------------------------------------------------------------
+   Safe-area utilities (notch / home indicator on iOS + Android)
+   --------------------------------------------------------------- */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+@utility px-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+/* Extra bottom room so content never hides under the nav bar. */
+@utility pb-nav {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------------------------------------------------------------
+   Mobile base: no bounce, no zoom-on-tap, no accidental selection
+   --------------------------------------------------------------- */
+html {
+  background-color: #050a15;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #050a15;
+  color: #fff;
+  min-height: 100dvh;
+  /* Block pull-to-refresh and rubber-banding: the speedometer is a fixed
+     dashboard, not a scrolling document. */
+  overscroll-behavior: none;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Kill the grey flash Android/iOS paint over tapped elements. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Removes the 300ms click delay and double-tap zoom. */
+button,
+a,
+label,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* UI chrome should not be selectable while driving; real content still is. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* iOS zooms the page when focusing an input under 16px. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Slim scrollbars inside the scrollable panels. */
+.scroll-area {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.scroll-area::-webkit-scrollbar {
+  width: 4px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

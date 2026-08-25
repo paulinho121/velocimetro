@@ -66,9 +66,9 @@ export default function MapView() {
   const { activeTrip } = useTrip();
 
   return (
-    <div className="p-6 h-full flex flex-col bg-[#050A15] text-white">
-      <h2 className="text-2xl font-black mb-4 tracking-wide">Mapa da Viagem</h2>
-      <div className="flex-1 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-xl p-2 relative overflow-hidden shadow-[0_0_30px_rgba(255,255,255,0.02)]">
+    <div className="flex h-full min-h-0 flex-col bg-[#050A15] px-4 pt-4 pb-nav text-white">
+      <h2 className="mb-3 shrink-0 text-xl font-black tracking-wide">Mapa da viagem</h2>
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-2 backdrop-blur-xl">
         {activeTrip ? (
           <SvgMap path={activeTrip.path} />
         ) : (
@@ -79,7 +79,7 @@ export default function MapView() {
           </div>
         )}
       </div>
-      <p className="text-[10px] uppercase font-bold tracking-widest text-center text-white/40 mt-4">
+      <p className="mt-3 shrink-0 text-center text-[9px] font-bold uppercase tracking-widest text-white/40">
         O mapa exibe o rastro do seu GPS no plano cartesiano.
       </p>
     </div>

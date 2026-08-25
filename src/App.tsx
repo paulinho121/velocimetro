@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GpsProvider } from './contexts/GpsContext';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
-import { TripProvider } from './contexts/TripContext';
+import { TripProvider, useTrip } from './contexts/TripContext';
 import Layout from './components/Layout';
 import SpeedometerView from './pages/SpeedometerView';
 import TripView from './pages/TripView';
@@ -10,6 +10,9 @@ import HistoryView from './pages/HistoryView';
 import SettingsView from './pages/SettingsView';
 import BootScreen from './components/BootScreen';
 import SetupScreen from './components/SetupScreen';
+import ErrorBoundary from './components/ErrorBoundary';
+import SpeedometerFullscreen from './components/SpeedometerFullscreen';
+import { HazardProvider } from './contexts/HazardContext';
 
 export type Route = 'speedometer' | 'trip' | 'map' | 'history' | 'settings';
 
@@ -17,66 +20,78 @@ function AppContent() {
   const [currentRoute, setCurrentRoute] = useState<Route>('speedometer');
   const [isBooting, setIsBooting] = useState(true);
   const { settings } = useSettings();
+  const { isDrivingMode } = useTrip();
   const wakeLockRef = useRef<any>(null);
 
   useEffect(() => {
-    // Simulate boot screen
-    const timer = setTimeout(() => {
-      setIsBooting(false);
-    }, 2000);
+    const timer = setTimeout(() => setIsBooting(false), 1200);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (settings.keepScreenOn && !isBooting && 'wakeLock' in navigator) {
-      const requestWakeLock = async () => {
-        try {
-          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        } catch (err) {
-          console.error(err);
-        }
-      };
-      requestWakeLock();
-      
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          requestWakeLock();
-        }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      
-      return () => {
-        if (wakeLockRef.current) wakeLockRef.current.release();
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
-    }
+    if (!settings.keepScreenOn || isBooting || !('wakeLock' in navigator)) return;
+
+    let released = false;
+
+    const requestWakeLock = async () => {
+      // The browser rejects the request whenever the page is not visible;
+      // that is expected, not an error worth surfacing.
+      if (document.visibilityState !== 'visible') return;
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      } catch {
+        /* screen lock unavailable - the app still works */
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (!released && document.visibilityState === 'visible') requestWakeLock();
+    };
+
+    requestWakeLock();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      wakeLockRef.current?.release?.().catch(() => {});
+      wakeLockRef.current = null;
+    };
   }, [settings.keepScreenOn, isBooting]);
 
-  if (isBooting) {
-    return <BootScreen />;
-  }
+  if (isBooting) return <BootScreen />;
 
   return (
-    <Layout currentRoute={currentRoute} onNavigate={setCurrentRoute}>
-      <SetupScreen onComplete={() => {}}>
-        {currentRoute === 'speedometer' && <SpeedometerView />}
-        {currentRoute === 'trip' && <TripView />}
-        {currentRoute === 'map' && <MapView />}
-        {currentRoute === 'history' && <HistoryView />}
-        {currentRoute === 'settings' && <SettingsView />}
-      </SetupScreen>
-    </Layout>
+    <SetupScreen onComplete={() => {}}>
+      {/* Fullscreen speedometer replaces the shell entirely - no nav, no map,
+          nothing but speed and what is coming up on the road. */}
+      {isDrivingMode ? (
+        <SpeedometerFullscreen />
+      ) : (
+        <Layout currentRoute={currentRoute} onNavigate={setCurrentRoute}>
+          {currentRoute === 'speedometer' && <SpeedometerView />}
+          {currentRoute === 'trip' && <TripView />}
+          {currentRoute === 'map' && <MapView />}
+          {currentRoute === 'history' && <HistoryView />}
+          {currentRoute === 'settings' && <SettingsView />}
+        </Layout>
+      )}
+    </SetupScreen>
   );
 }
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <GpsProvider>
-        <TripProvider>
-          <AppContent />
-        </TripProvider>
-      </GpsProvider>
-    </SettingsProvider>
+    <ErrorBoundary>
+      <SettingsProvider>
+        <GpsProvider>
+          <TripProvider>
+            <HazardProvider>
+              <AppContent />
+            </HazardProvider>
+          </TripProvider>
+        </GpsProvider>
+      </SettingsProvider>
+    </ErrorBoundary>
   );
 }

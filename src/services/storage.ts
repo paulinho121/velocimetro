@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gpsAccuracy: 'high',
   audioAlerts: false,
   speedAlert: null,
+  hazardAlerts: true,
   isSetupComplete: false,
 };
 

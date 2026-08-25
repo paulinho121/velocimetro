@@ -1,7 +1,12 @@
 import React from 'react';
 import { Route } from '../App';
-import { Gauge, Map as MapIcon, Settings as SettingsIcon, Clock, Activity } from 'lucide-react';
-import { useTrip } from '../contexts/TripContext';
+import {
+  Gauge,
+  Map as MapIcon,
+  Settings as SettingsIcon,
+  Clock,
+  Activity,
+} from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,9 +14,11 @@ interface LayoutProps {
   onNavigate: (route: Route) => void;
 }
 
-export default function Layout({ children, currentRoute, onNavigate }: LayoutProps) {
-  const { isDrivingMode } = useTrip();
-
+export default function Layout({
+  children,
+  currentRoute,
+  onNavigate,
+}: LayoutProps) {
   const navItems: { id: Route; icon: any; label: string }[] = [
     { id: 'speedometer', icon: Gauge, label: 'Velocímetro' },
     { id: 'trip', icon: Activity, label: 'Viagem' },
@@ -21,34 +28,37 @@ export default function Layout({ children, currentRoute, onNavigate }: LayoutPro
   ];
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-[#050A15] text-white font-sans overflow-hidden">
-      
-      {/* Main Content Area */}
-      <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
-        {children}
-      </main>
+    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#050A15] pt-safe px-safe text-white">
+      <main className="relative min-h-0 flex-1 overflow-hidden">{children}</main>
 
-      {/* Bottom Navigation */}
-      {!isDrivingMode && (
-        <nav className="flex-shrink-0 bg-[#050A15] border-t border-white/10 pb-safe">
-          <div className="flex justify-around items-center h-20">
-            {navItems.map((item) => (
+      <nav className="flex-shrink-0 border-t border-white/10 bg-[#050A15]/95 pb-safe backdrop-blur-xl">
+        <div className="flex h-16 items-stretch justify-around">
+          {navItems.map((item) => {
+            const active = currentRoute === item.id;
+            return (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
-                  currentRoute === item.id 
-                    ? 'text-cyan-400' 
-                    : 'text-white/40 hover:text-white'
+                aria-label={item.label}
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-colors active:bg-white/5 ${
+                  active ? 'text-cyan-400' : 'text-white/40'
                 }`}
               >
-                <item.icon className={`w-5 h-5 ${currentRoute === item.id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-                <span className="text-[9px] font-bold uppercase tracking-wider">{item.label}</span>
+                {active && (
+                  <span className="absolute top-0 h-0.5 w-8 rounded-full bg-cyan-400 shadow-[0_0_10px_#00e5ff]" />
+                )}
+                <item.icon
+                  className={`h-5 w-5 shrink-0 ${active ? 'stroke-[2.5px]' : 'stroke-2'}`}
+                />
+                <span className="max-w-full truncate px-0.5 text-[9px] font-bold uppercase tracking-wider">
+                  {item.label}
+                </span>
               </button>
-            ))}
-          </div>
-        </nav>
-      )}
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

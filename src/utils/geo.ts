@@ -85,3 +85,51 @@ export class SpeedSmoother {
     this.value = null;
   }
 }
+
+/** Display label for a speed unit ('kmh' -> 'km/h'). */
+export function unitLabel(unit: Unit): string {
+  if (unit === 'kmh') return 'km/h';
+  if (unit === 'mph') return 'mph';
+  return 'm/s';
+}
+
+/**
+ * Distance split into number and label so the two can be styled separately.
+ * Switches m -> km automatically, which is why the label must travel with
+ * the value instead of being hardcoded at the call site.
+ */
+export function distanceParts(
+  distanceMeters: number,
+  unit: Unit,
+): { value: string; label: string } {
+  if (isNaN(distanceMeters) || distanceMeters < 0) distanceMeters = 0;
+  if (unit === 'mph') {
+    return { value: (distanceMeters / 1609.34).toFixed(1), label: 'mi' };
+  }
+  if (distanceMeters < 1000) {
+    return { value: distanceMeters.toFixed(0), label: 'm' };
+  }
+  return { value: (distanceMeters / 1000).toFixed(1), label: 'km' };
+}
+
+/** Initial bearing from point 1 to point 2, in degrees clockwise from north. */
+export function calculateBearing(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const p1 = toRad(lat1);
+  const p2 = toRad(lat2);
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(p2);
+  const x =
+    Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+/** Smallest absolute angle between two bearings, always 0-180. */
+export function angularDifference(a: number, b: number): number {
+  const diff = Math.abs(((a - b) % 360) + 360) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}

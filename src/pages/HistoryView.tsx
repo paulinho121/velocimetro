@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getTrips } from '../services/storage';
 import { Trip } from '../types';
-import { formatDistance, formatSpeed } from '../utils/geo';
+import { convertSpeed, distanceParts, unitLabel } from '../utils/geo';
 import { formatTime, formatDate } from '../utils/format';
 import { useSettings } from '../contexts/SettingsContext';
 import { Clock, Map, ChevronRight, MapPin } from 'lucide-react';
@@ -20,26 +20,26 @@ export default function HistoryView() {
   }, []);
 
   if (loading) {
-    return <div className="p-4 text-center text-white/50 bg-[#050A15] h-full">Carregando...</div>;
+    return <div className="flex h-full items-center justify-center bg-[#050A15] text-white/50">Carregando...</div>;
   }
 
   if (trips.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center text-white/50 bg-[#050A15]">
-        <Clock className="w-16 h-16 mb-4 opacity-30" />
-        <h2 className="text-xl font-bold text-white mb-2">Nenhum histórico</h2>
-        <p>Suas viagens finalizadas aparecerão aqui.</p>
+      <div className="flex h-full flex-col items-center justify-center bg-[#050A15] px-6 text-center text-white/50">
+        <Clock className="mb-4 h-14 w-14 opacity-30" />
+        <h2 className="mb-2 text-lg font-bold text-white">Nenhum histórico</h2>
+        <p className="text-sm">Suas viagens finalizadas aparecerão aqui.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 h-full flex flex-col bg-[#050A15] text-white">
-      <h2 className="text-2xl font-black mb-6 tracking-wide">Histórico de Viagens</h2>
+    <div className="flex h-full min-h-0 flex-col bg-[#050A15] px-4 pt-4 text-white">
+      <h2 className="mb-4 shrink-0 text-xl font-black tracking-wide">Histórico de viagens</h2>
       
-      <div className="flex-1 overflow-y-auto space-y-4 pb-8 pr-2">
+      <div className="scroll-area min-h-0 flex-1 space-y-3 overflow-y-auto pb-nav">
         {trips.map(trip => (
-          <div key={trip.id} className="bg-white/5 rounded-3xl p-5 border border-white/10 backdrop-blur-xl">
+          <div key={trip.id} className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
             <div className="flex justify-between items-center mb-4">
               <span className="font-black text-lg text-white">{formatDate(trip.startTime)}</span>
               <span className="text-[10px] font-bold px-2 py-1 bg-white/10 border border-white/20 rounded-md uppercase tracking-widest text-cyan-400">
@@ -48,17 +48,25 @@ export default function HistoryView() {
             </div>
             
             <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-white/40 tracking-widest">Distância</span>
-                <span className="font-bold text-lg">{formatDistance(trip.distance, settings.unit)}</span>
+              <div className="flex min-w-0 flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Distância</span>
+                <span className="truncate text-base font-bold">
+                  {distanceParts(trip.distance, settings.unit).value}
+                  <span className="ml-1 text-xs font-normal text-white/50">
+                    {distanceParts(trip.distance, settings.unit).label}
+                  </span>
+                </span>
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-bold text-white/40 tracking-widest">Tempo</span>
-                <span className="font-bold text-lg tabular-nums">{formatTime(trip.movingTime + trip.stoppedTime)}</span>
+                <span className="truncate text-base font-bold tabular-nums">{formatTime(trip.movingTime + trip.stoppedTime)}</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-bold text-white/40 tracking-widest">Média</span>
-                <span className="font-bold text-lg text-cyan-400">{formatSpeed(trip.averageSpeed, settings.unit)}</span>
+                <span className="truncate text-base font-bold text-cyan-400">
+                  {convertSpeed(trip.averageSpeed, settings.unit).toFixed(1)}
+                  <span className="ml-1 text-xs font-normal text-white/50">{unitLabel(settings.unit)}</span>
+                </span>
               </div>
             </div>
 

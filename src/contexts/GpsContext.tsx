@@ -1,83 +1,122 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { GpsStatus, LocationPoint } from '../types';
+import { useSettings } from './SettingsContext';
 
 interface GpsContextValue {
   status: GpsStatus;
   location: LocationPoint | null;
   isDemoMode: boolean;
   toggleDemoMode: () => void;
-  startTracking: (highAccuracy: boolean) => void;
-  stopTracking: () => void;
+  retry: () => void;
   accuracy: number | null;
+  /** Human-readable reason why we have no fix, or null when all is well. */
+  errorMessage: string | null;
+  /** True while the page is not a secure context (GPS is blocked by the browser). */
+  isInsecureContext: boolean;
 }
 
 const GpsContext = createContext<GpsContextValue | undefined>(undefined);
 
+const ACCURACY_OPTIONS = {
+  high: { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+  balanced: { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
+  low: { enableHighAccuracy: false, maximumAge: 10000, timeout: 30000 },
+} as const;
+
 export function GpsProvider({ children }: { children: React.ReactNode }) {
+  const { settings, isLoading } = useSettings();
   const [status, setStatus] = useState<GpsStatus>('waiting');
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
-  const watchIdRef = useRef<number | null>(null);
-  const demoIntervalRef = useRef<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
-  const stopTracking = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    if (demoIntervalRef.current !== null) {
-      window.clearInterval(demoIntervalRef.current);
-      demoIntervalRef.current = null;
-    }
-    setStatus('waiting');
-  }, []);
+  // Geolocation is only handed out on https:// or localhost. Phones hitting a
+  // plain http:// LAN address get nothing, so we detect it and say so.
+  const isInsecureContext =
+    typeof window !== 'undefined' && !window.isSecureContext;
 
-  const startTracking = useCallback((highAccuracy: boolean = true) => {
-    stopTracking();
-    if (isDemoMode) {
-      setStatus('connected');
-      let speed = 0;
-      let lat = -23.55052;
-      let lng = -46.633308;
-      let heading = 0;
-      demoIntervalRef.current = window.setInterval(() => {
-        // Simulate some movement
-        speed += (Math.random() - 0.4) * 2; // Accel/decel bias
-        if (speed < 0) speed = 0;
-        if (speed > 35) speed = 35; // max ~126 km/h
-        
-        heading += (Math.random() - 0.5) * 10;
-        lat += 0.0001 * Math.cos(heading * Math.PI / 180);
-        lng += 0.0001 * Math.sin(heading * Math.PI / 180);
+  const toggleDemoMode = useCallback(() => setIsDemoMode((prev) => !prev), []);
+  const retry = useCallback(() => setRetryToken((n) => n + 1), []);
 
-        setLocation({
-          lat,
-          lng,
-          alt: 760 + Math.random() * 10 - 5,
-          speed,
-          heading: (heading + 360) % 360,
-          accuracy: 5,
-          timestamp: Date.now(),
-        });
-      }, 1000);
-      return;
-    }
+  const enabled = !isLoading && settings.isSetupComplete;
+  const accuracyMode = settings.gpsAccuracy;
+
+  // ---- Demo mode: synthesise a plausible drive -------------------------
+  useEffect(() => {
+    if (!enabled || !isDemoMode) return;
+
+    setStatus('connected');
+    setErrorMessage(null);
+
+    let speed = 0;
+    let lat = -23.55052;
+    let lng = -46.633308;
+    let heading = 0;
+
+    const id = window.setInterval(() => {
+      speed += (Math.random() - 0.4) * 2;
+      speed = Math.min(Math.max(speed, 0), 35); // cap at ~126 km/h
+
+      heading += (Math.random() - 0.5) * 10;
+
+      // Step the coordinates by exactly the distance the reported speed
+      // implies, otherwise the simulated track and the simulated speedometer
+      // disagree and the trip stats come out nonsensical.
+      const rad = (heading * Math.PI) / 180;
+      const metres = speed * 1; // one tick == one second
+      lat += (metres * Math.cos(rad)) / 111320;
+      lng += (metres * Math.sin(rad)) / (111320 * Math.cos((lat * Math.PI) / 180));
+
+      setLocation({
+        lat,
+        lng,
+        alt: 760 + Math.random() * 10 - 5,
+        speed,
+        heading: (heading + 360) % 360,
+        accuracy: 5,
+        timestamp: Date.now(),
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(id);
+      setStatus('waiting');
+      setLocation(null);
+    };
+  }, [enabled, isDemoMode]);
+
+  // ---- Real GPS --------------------------------------------------------
+  useEffect(() => {
+    if (!enabled || isDemoMode) return;
 
     if (!('geolocation' in navigator)) {
       setStatus('unavailable');
+      setErrorMessage('Este navegador não oferece geolocalização.');
+      return;
+    }
+
+    if (isInsecureContext) {
+      setStatus('unavailable');
+      setErrorMessage(
+        'O GPS exige uma conexão segura (https). Abra o app por https ou em localhost.',
+      );
       return;
     }
 
     setStatus('locating');
-    
-    const options = {
-      enableHighAccuracy: highAccuracy,
-      maximumAge: 0,
-      timeout: 10000,
-    };
+    setErrorMessage(null);
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        setErrorMessage(null);
         setStatus(pos.coords.accuracy > 30 ? 'weak' : 'connected');
         setLocation({
           lat: pos.coords.latitude,
@@ -92,40 +131,56 @@ export function GpsProvider({ children }: { children: React.ReactNode }) {
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
           setStatus('denied');
+          setErrorMessage(
+            'Permissão de localização negada. Libere o acesso nas configurações do navegador.',
+          );
+        } else if (err.code === err.TIMEOUT) {
+          // A timeout is not fatal — watchPosition keeps trying.
+          setStatus((prev) => (prev === 'locating' ? 'locating' : prev));
+          setErrorMessage('Procurando satélites… vá para um local aberto.');
         } else {
           setStatus('unavailable');
+          setErrorMessage('Não foi possível obter a localização.');
         }
       },
-      options
+      ACCURACY_OPTIONS[accuracyMode] ?? ACCURACY_OPTIONS.high,
     );
-  }, [isDemoMode, stopTracking]);
 
-  const toggleDemoMode = useCallback(() => {
-    setIsDemoMode((prev) => !prev);
-  }, []);
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      setStatus('waiting');
+    };
+  }, [enabled, isDemoMode, accuracyMode, isInsecureContext, retryToken]);
 
-  // Restart tracking if demo mode changes
+  // Mobile browsers freeze watchPosition while backgrounded; re-arm the watch
+  // when the user comes back so the reading is never silently stale.
+  const staleRef = useRef(false);
   useEffect(() => {
-    if (status !== 'waiting' && status !== 'denied') {
-      startTracking();
-    }
-  }, [isDemoMode]); // Intentionally not including startTracking to avoid loops, it's stable enough.
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => stopTracking();
-  }, [stopTracking]);
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        staleRef.current = true;
+      } else if (staleRef.current) {
+        staleRef.current = false;
+        retry();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [retry]);
 
   return (
-    <GpsContext.Provider value={{
-      status,
-      location,
-      isDemoMode,
-      toggleDemoMode,
-      startTracking,
-      stopTracking,
-      accuracy: location?.accuracy ?? null
-    }}>
+    <GpsContext.Provider
+      value={{
+        status,
+        location,
+        isDemoMode,
+        toggleDemoMode,
+        retry,
+        accuracy: location?.accuracy ?? null,
+        errorMessage,
+        isInsecureContext,
+      }}
+    >
       {children}
     </GpsContext.Provider>
   );

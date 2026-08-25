@@ -1,24 +1,227 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useTrip } from '../contexts/TripContext';
 import { useGps } from '../contexts/GpsContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { formatSpeed, formatDistance, getHeadingName } from '../utils/geo';
+import { useHazards } from '../contexts/HazardContext';
+import {
+  convertSpeed,
+  distanceParts,
+  getHeadingName,
+  unitLabel,
+} from '../utils/geo';
 import { formatTime } from '../utils/format';
-import { Moon, Play, Square, Pause, RotateCcw, AlertTriangle, Compass, MapPin } from 'lucide-react';
+import {
+  AlertTriangle,
+  Camera,
+  Compass,
+  Expand,
+  Mountain,
+  RefreshCw,
+  TriangleAlert,
+} from 'lucide-react';
 import clsx from 'clsx';
+import { HazardAhead } from '../types';
+import { requestAppFullscreen } from '../components/SpeedometerFullscreen';
+
+const STATUS_TEXT: Record<string, string> = {
+  waiting: 'Aguardando',
+  locating: 'Localizando...',
+  connected: 'GPS OK',
+  weak: 'Sinal fraco',
+  unavailable: 'Indisponível',
+  denied: 'Sem permissão',
+};
+
+const STATUS_DOT: Record<string, string> = {
+  connected: 'bg-emerald-500 shadow-[0_0_10px_#10b981]',
+  weak: 'bg-amber-500 shadow-[0_0_10px_#f59e0b]',
+  denied: 'bg-red-500 shadow-[0_0_10px_#ef4444]',
+  unavailable: 'bg-red-500 shadow-[0_0_10px_#ef4444]',
+  locating: 'bg-cyan-400 shadow-[0_0_10px_#00e5ff] animate-pulse',
+  waiting: 'bg-slate-500 shadow-[0_0_10px_#64748b]',
+};
+
+const STATUS_TEXT_COLOR: Record<string, string> = {
+  connected: 'text-emerald-500',
+  weak: 'text-amber-500',
+  denied: 'text-red-500',
+  unavailable: 'text-red-500',
+  locating: 'text-cyan-400',
+  waiting: 'text-slate-500',
+};
+
+const HAZARD_LABEL: Record<string, string> = {
+  bump: 'Lombada',
+  hump: 'Lombada',
+  table: 'Lombada elevada',
+  cushion: 'Almofada',
+  rumble_strip: 'Sonorizador',
+  speed_camera: 'Radar',
+};
+
+/** Compact readout used for the compass / altitude chips under the speed. */
+function Chip({
+  icon: Icon,
+  label,
+  value,
+  suffix,
+}: {
+  icon: any;
+  label: string;
+  value: string;
+  suffix?: string;
+}) {
+  return (
+    <div className="flex flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-xl">
+      <Icon className="h-4 w-4 shrink-0 text-cyan-400" />
+      <div className="flex min-w-0 flex-col leading-tight">
+        <span className="text-[8px] font-bold uppercase tracking-widest text-white/40">
+          {label}
+        </span>
+        <span className="truncate text-sm font-black text-white">
+          {value}
+          {suffix && (
+            <span className="ml-0.5 text-[10px] font-normal text-white/50">
+              {suffix}
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HazardBanner({
+  ahead,
+  currentSpeed,
+  unit,
+}: {
+  ahead: HazardAhead;
+  currentSpeed: number;
+  unit: string;
+}) {
+  const { hazard, distance, isAlerting } = ahead;
+  const isCamera = hazard.type === 'camera';
+  const Icon = isCamera ? Camera : TriangleAlert;
+  const label = HAZARD_LABEL[hazard.subtype] ?? 'Obstáculo';
+  // Only meaningful for km/h; the limit from OSM is always km/h.
+  const overLimit =
+    isCamera &&
+    hazard.maxspeed !== null &&
+    unit === 'kmh' &&
+    currentSpeed > hazard.maxspeed;
+
+  return (
+    <div
+      className={clsx(
+        'flex shrink-0 items-center gap-3 border-b px-3 py-2 transition-colors',
+        overLimit
+          ? 'animate-pulse border-red-500/40 bg-red-500/15'
+          : isAlerting
+            ? 'border-amber-400/40 bg-amber-400/15'
+            : 'border-white/10 bg-white/5',
+      )}
+    >
+      <Icon
+        className={clsx(
+          'h-5 w-5 shrink-0',
+          overLimit ? 'text-red-400' : isAlerting ? 'text-amber-400' : 'text-white/50',
+        )}
+      />
+      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+        <span
+          className={clsx(
+            'truncate text-xs font-bold uppercase tracking-widest',
+            overLimit ? 'text-red-300' : isAlerting ? 'text-amber-300' : 'text-white/60',
+          )}
+        >
+          {label}
+        </span>
+        {isCamera && hazard.maxspeed !== null && (
+          <span className="text-[10px] text-white/50">
+            Limite {hazard.maxspeed} km/h
+          </span>
+        )}
+      </div>
+      <span
+        className={clsx(
+          'shrink-0 text-lg font-black tabular-nums',
+          overLimit ? 'text-red-300' : isAlerting ? 'text-amber-300' : 'text-white/70',
+        )}
+      >
+        {distance < 1000
+          ? `${Math.round(distance / 10) * 10} m`
+          : `${(distance / 1000).toFixed(1)} km`}
+      </span>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  suffix,
+  accent,
+}: {
+  label: string;
+  value: string;
+  suffix?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-xl">
+      <span className="mb-0.5 block text-[8px] font-bold uppercase tracking-widest text-white/40">
+        {label}
+      </span>
+      <div className="flex items-baseline gap-1">
+        <span
+          className={clsx(
+            'text-lg font-black tabular-nums leading-none sm:text-2xl',
+            accent ? 'text-cyan-400' : 'text-white',
+          )}
+        >
+          {value}
+        </span>
+        {suffix && <span className="text-[10px] text-white/40">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
 
 export default function SpeedometerView() {
-  const { 
-    activeTrip, isActive, isPaused, startTrip, pauseTrip, resumeTrip, endTrip, 
-    currentSpeedMs, isDrivingMode, toggleDrivingMode 
+  const {
+    activeTrip,
+    isActive,
+    isPaused,
+    startTrip,
+    pauseTrip,
+    resumeTrip,
+    endTrip,
+    currentSpeedMs,
+    toggleDrivingMode,
   } = useTrip();
-  const { status, location, accuracy } = useGps();
+  const { status, location, accuracy, errorMessage, retry } = useGps();
   const { settings } = useSettings();
+  const { next: hazardAhead } = useHazards();
 
-  const currentSpeed = parseFloat(formatSpeed(currentSpeedMs, settings.unit));
-  
-  // Alert logic
-  const isSpeeding = settings.speedAlert !== null && currentSpeed > settings.speedAlert;
+  const currentSpeed = convertSpeed(currentSpeedMs, settings.unit);
+  const speedUnit = unitLabel(settings.unit);
+  const isSpeeding =
+    settings.speedAlert !== null && currentSpeed > settings.speedAlert;
+
+  // `location` is null until the first fix lands, and `heading`/`alt` are null
+  // on hardware that does not report them - both have to be checked before use.
+  const heading =
+    location != null &&
+    location.heading != null &&
+    !Number.isNaN(location.heading)
+      ? location.heading
+      : null;
+  const altitude = location != null && location.alt != null ? location.alt : null;
+
+  const dist = distanceParts(activeTrip?.distance ?? 0, settings.unit);
+  const avgSpeed = convertSpeed(activeTrip?.averageSpeed ?? 0, settings.unit);
+  const maxSpeed = convertSpeed(activeTrip?.maxSpeed ?? 0, settings.unit);
 
   const handleStart = () => {
     if (isActive && !isPaused) pauseTrip();
@@ -26,193 +229,185 @@ export default function SpeedometerView() {
     else startTrip(settings.defaultMode);
   };
 
-  const getStatusColor = () => {
-    if (status === 'connected') return 'text-emerald-500 bg-emerald-500/10';
-    if (status === 'weak') return 'text-amber-500 bg-amber-500/10';
-    if (status === 'denied') return 'text-red-500 bg-red-500/10';
-    return 'text-slate-500 bg-slate-500/10';
-  };
-
-  const getStatusText = () => {
-    if (status === 'waiting') return 'Aguardando...';
-    if (status === 'locating') return 'Obtendo localização...';
-    if (status === 'connected') return 'GPS Conectado';
-    if (status === 'weak') return 'Sinal Fraco';
-    if (status === 'unavailable') return 'GPS Indisponível';
-    if (status === 'denied') return 'Permissão Negada';
-    return 'Desconhecido';
-  };
+  const showBanner =
+    errorMessage !== null && (status === 'denied' || status === 'unavailable');
 
   return (
-    <div className="flex flex-col h-full bg-[#050A15]">
-      {/* Top Bar */}
-      <header className="flex justify-between items-center px-4 md:px-8 py-4 bg-white/5 border-b border-white/10 backdrop-blur-md z-20">
-        <div className="flex items-center gap-3">
-          <div className={clsx(
-            "w-3 h-3 rounded-full",
-            status === 'connected' ? "bg-emerald-500 shadow-[0_0_10px_#10b981]" :
-            status === 'weak' ? "bg-amber-500 shadow-[0_0_10px_#f59e0b]" :
-            status === 'denied' ? "bg-red-500 shadow-[0_0_10px_#ef4444]" :
-            "bg-slate-500 shadow-[0_0_10px_#64748b]"
-          )}></div>
-          <div className="flex flex-col hidden sm:flex">
-            <span className={clsx(
-              "text-xs font-bold uppercase tracking-widest",
-              status === 'connected' ? "text-emerald-500" :
-              status === 'weak' ? "text-amber-500" :
-              status === 'denied' ? "text-red-500" : "text-slate-500"
-            )}>{getStatusText()}</span>
-            {accuracy && (
-              <span className="text-[10px] text-white/40">Precisão: ± {accuracy.toFixed(0)}m</span>
+    <div className="flex h-full flex-col overflow-hidden bg-[#050A15]">
+      {/* ---- Header ---- */}
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-white/5 px-3 py-2 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={clsx(
+              'h-2.5 w-2.5 shrink-0 rounded-full',
+              STATUS_DOT[status] ?? STATUS_DOT.waiting,
+            )}
+          />
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span
+              className={clsx(
+                'truncate text-[10px] font-bold uppercase tracking-widest',
+                STATUS_TEXT_COLOR[status] ?? 'text-slate-500',
+              )}
+            >
+              {STATUS_TEXT[status] ?? 'Desconhecido'}
+            </span>
+            {accuracy !== null && (
+              <span className="text-[9px] text-white/40">
+                ± {accuracy.toFixed(0)} m
+              </span>
             )}
           </div>
         </div>
-        
-        <div className="flex flex-col items-center">
-          <span className="text-xl font-black tracking-tighter italic text-cyan-400">VELOX</span>
-          <span className="text-[8px] uppercase tracking-[0.3em] text-white/40">Speedometer</span>
+
+        <div className="flex shrink-0 flex-col items-center leading-none">
+          <span className="text-base font-black italic tracking-tighter text-cyan-400">
+            VELOX
+          </span>
+          <span className="text-[7px] uppercase tracking-[0.3em] text-white/40">
+            Speedometer
+          </span>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col text-right hidden sm:flex">
-             <span className="text-xs font-bold uppercase text-white/60">Modo</span>
-             <span className="text-xs text-cyan-400 font-bold capitalize">{settings.defaultMode}</span>
-          </div>
-          <button 
-            onClick={toggleDrivingMode}
-            className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 text-white"
-          >
-            <Moon className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            requestAppFullscreen();
+            toggleDrivingMode();
+          }}
+          aria-label="Abrir modo velocímetro em tela cheia"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white active:bg-white/20"
+        >
+          <Expand className="h-5 w-5" />
+        </button>
       </header>
 
-      <main className="flex-1 flex flex-col relative px-4 md:px-8 py-4 z-10 overflow-hidden">
-        {/* Side Elements */}
-        {!isDrivingMode && location?.heading !== null && (
-          <div className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 p-2 md:p-4 bg-white/5 rounded-full border border-white/10 backdrop-blur-xl w-16 md:w-24 z-20">
-            <span className="text-[8px] md:text-[10px] uppercase font-bold text-white/40">Bússola</span>
-            <div className="relative w-12 h-12 md:w-16 md:h-16 border-2 border-white/20 rounded-full flex items-center justify-center">
-              <div className="absolute w-1 h-full py-1" style={{ transform: `rotate(${location.heading}deg)` }}>
-                <div className="w-1 h-2 bg-cyan-400 rounded-full"></div>
-              </div>
-              <span className="text-sm md:text-lg font-black text-white">{getHeadingName(location.heading)}</span>
-            </div>
-            <span className="text-[8px] md:text-[10px] font-mono text-cyan-400">{Math.round(location.heading)}°</span>
-          </div>
-        )}
+      {/* ---- GPS problem banner ---- */}
+      {showBanner && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-red-500/30 bg-red-500/10 px-3 py-2">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+          <p className="flex-1 text-[11px] leading-tight text-red-200">
+            {errorMessage}
+          </p>
+          <button
+            onClick={retry}
+            aria-label="Tentar novamente"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/20 text-red-200 active:bg-red-500/30"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
-        {!isDrivingMode && location?.alt !== null && (
-          <div className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 p-2 md:p-4 bg-white/5 rounded-full border border-white/10 backdrop-blur-xl w-16 md:w-24 z-20">
-            <span className="text-[8px] md:text-[10px] uppercase font-bold text-white/40">Altitude</span>
-            <MapPin className="w-4 h-4 md:w-5 md:h-5 text-cyan-400" />
-            <span className="text-sm md:text-lg font-black text-white">{location.alt.toFixed(0)}<span className="text-[10px] md:text-xs font-normal text-white/60 ml-1">m</span></span>
-            <div className="flex flex-col md:flex-row gap-1 text-[8px] text-white/40 text-center">
-              {activeTrip && (
-                <>
-                  <span className="text-emerald-400">↑ {activeTrip.totalAscent.toFixed(0)}</span>
-                  <span>↓ {activeTrip.totalDescent.toFixed(0)}</span>
-                </>
+      {/* ---- Next hazard on the road ---- */}
+      {hazardAhead && (
+        <HazardBanner
+          ahead={hazardAhead}
+          currentSpeed={currentSpeed}
+          unit={settings.unit}
+        />
+      )}
+
+      {/* ---- Speed dial ---- */}
+      <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 px-3 py-2">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center">
+          {/* Concentric rings scale with the viewport so they never crop. */}
+          <div
+            className="pointer-events-none absolute flex items-center justify-center"
+            style={{ width: 'min(78vw, 42vh)', height: 'min(78vw, 42vh)' }}
+          >
+            <div className="absolute h-full w-full rounded-full border border-cyan-400/10" />
+            <div className="absolute h-[86%] w-[86%] rounded-full border-2 border-cyan-400/20" />
+            <div
+              className={clsx(
+                'absolute h-[72%] w-[72%] rounded-full border-4',
+                isSpeeding
+                  ? 'border-red-500/30 border-t-red-500'
+                  : 'border-cyan-400/30 border-t-cyan-400',
               )}
-            </div>
+            />
           </div>
-        )}
 
-        {/* Main Speed Display */}
-        <div className="flex-1 flex flex-col items-center justify-center relative">
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-[280px] h-[280px] sm:w-[480px] sm:h-[480px] rounded-full border-[1px] border-cyan-400/10"></div>
-            <div className="absolute w-[240px] h-[240px] sm:w-[440px] sm:h-[440px] rounded-full border-[2px] border-cyan-400/20"></div>
-            <div className="absolute w-[200px] h-[200px] sm:w-[400px] sm:h-[400px] rounded-full border-[4px] border-cyan-400/30 border-t-cyan-400"></div>
-          </div>
-          <div className="flex flex-col items-center z-10">
-            <span className={clsx(
-              "font-black tracking-tighter text-white transition-colors duration-300 leading-none",
-              isSpeeding ? "text-red-500 drop-shadow-[0_0_30px_rgba(239,68,68,0.3)]" : "drop-shadow-[0_0_30px_rgba(0,229,255,0.3)]",
-              isDrivingMode ? "text-[160px] sm:text-[220px]" : "text-[120px] sm:text-[200px]"
-            )}>
+          <div className="relative z-10 flex flex-col items-center">
+            <span
+              className={clsx(
+                'font-black leading-[0.85] tracking-tighter tabular-nums transition-colors duration-300',
+                isSpeeding
+                  ? 'text-red-500 drop-shadow-[0_0_30px_rgba(239,68,68,0.35)]'
+                  : 'text-white drop-shadow-[0_0_30px_rgba(0,229,255,0.3)]',
+              )}
+              style={{ fontSize: 'clamp(4rem, min(34vw, 24vh), 14rem)' }}
+            >
               {Math.floor(currentSpeed)}
             </span>
-            <div className="flex items-center gap-2 -mt-2 sm:-mt-4">
-              <span className={clsx(
-                "font-light uppercase tracking-widest",
-                isSpeeding ? "text-red-500/60" : "text-white/60",
-                isDrivingMode ? "text-3xl" : "text-2xl sm:text-4xl"
-              )}>
-                {settings.unit === 'kmh' ? 'km/h' : settings.unit === 'mph' ? 'mph' : 'm/s'}
-              </span>
-            </div>
+            <span
+              className={clsx(
+                'mt-1 text-lg font-light uppercase tracking-[0.25em] sm:text-2xl',
+                isSpeeding ? 'text-red-500/70' : 'text-white/60',
+              )}
+            >
+              {speedUnit}
+            </span>
           </div>
-          
-          {/* Warning Indicator */}
+
           {isSpeeding && (
-            <div className="absolute top-10 sm:top-20 animate-pulse text-red-500 flex items-center gap-2">
-              <AlertTriangle className="w-6 h-6" />
-              <span className="font-bold">LIMITE EXCEDIDO</span>
+            <div className="absolute top-2 flex animate-pulse items-center gap-2 rounded-full bg-red-500/15 px-3 py-1 text-red-400">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="text-[11px] font-bold uppercase tracking-widest">
+                Limite excedido
+              </span>
             </div>
           )}
         </div>
 
-        {/* Stats Grid */}
-        <div className={clsx(
-          "grid gap-4 mt-6",
-          isDrivingMode ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"
-        )}>
-          <div className="bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-xl">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-white/40 block mb-1">Distância</span>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-white">
-                {activeTrip ? parseFloat(formatDistance(activeTrip.distance, settings.unit)).toFixed(1) : "0.0"}
-              </span>
-              <span className="text-xs text-white/40">{settings.unit === 'mph' ? 'mi' : 'km'}</span>
-            </div>
+        {/* ---- Compass + altitude chips (in flow, never over the dial) ---- */}
+        {(heading !== null || altitude !== null) && (
+          <div className="flex shrink-0 gap-2">
+            {heading !== null && (
+              <Chip
+                icon={Compass}
+                label="Direção"
+                value={`${getHeadingName(heading)} ${Math.round(heading)}°`}
+              />
+            )}
+            {altitude !== null && (
+              <Chip
+                icon={Mountain}
+                label="Altitude"
+                value={altitude.toFixed(0)}
+                suffix="m"
+              />
+            )}
           </div>
-          <div className="bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-xl">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-white/40 block mb-1">Tempo Total</span>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-white tabular-nums">
-                {activeTrip ? formatTime(activeTrip.movingTime + activeTrip.stoppedTime) : '00:00:00'}
-              </span>
-            </div>
-          </div>
-          
-          {!isDrivingMode && (
-            <>
-              <div className="bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-xl">
-                <span className="text-[10px] uppercase font-bold tracking-widest text-white/40 block mb-1">Vel. Média</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-white">
-                    {activeTrip ? parseFloat(formatSpeed(activeTrip.averageSpeed, settings.unit)).toFixed(1) : '0.0'}
-                  </span>
-                  <span className="text-xs text-white/40">{settings.unit === 'kmh' ? 'km/h' : settings.unit === 'mph' ? 'mph' : 'm/s'}</span>
-                </div>
-              </div>
-              <div className="bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-xl">
-                <span className="text-[10px] uppercase font-bold tracking-widest text-white/40 block mb-1">Vel. Máxima</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-cyan-400">
-                    {activeTrip ? parseFloat(formatSpeed(activeTrip.maxSpeed, settings.unit)).toFixed(1) : '0.0'}
-                  </span>
-                  <span className="text-xs text-white/40">{settings.unit === 'kmh' ? 'km/h' : settings.unit === 'mph' ? 'mph' : 'm/s'}</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </main>
+        )}
 
-      {/* Controls */}
-      <div className="px-4 md:px-8 py-4 md:py-6 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6 bg-white/5 backdrop-blur-2xl border-t border-white/10">
-        <div className="flex-1 h-auto md:h-16 bg-white/5 rounded-2xl flex items-center px-4 md:px-6 py-3 border border-white/10 w-full">
-           <span className="text-[8px] md:text-[10px] font-bold uppercase text-white/30 mr-2 md:mr-4 shrink-0">Segurança</span>
-           <p className="text-[9px] md:text-[11px] text-white/60 leading-tight">Não opere o dispositivo em movimento. Concentre-se na via.</p>
+        {/* ---- Stats ---- */}
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Distância" value={dist.value} suffix={dist.label} />
+          <Stat
+            label="Tempo"
+            value={
+              activeTrip
+                ? formatTime(activeTrip.movingTime + activeTrip.stoppedTime)
+                : '00:00'
+            }
+          />
+          <Stat label="Vel. média" value={avgSpeed.toFixed(1)} suffix={speedUnit} />
+          <Stat
+            label="Vel. máxima"
+            value={maxSpeed.toFixed(1)}
+            suffix={speedUnit}
+            accent
+          />
         </div>
-        
-        <div className="flex gap-4 w-full md:w-auto">
+      </div>
+
+      {/* ---- Controls ---- */}
+      <div className="shrink-0 border-t border-white/10 bg-white/5 px-3 py-3 backdrop-blur-2xl">
+        <div className="flex gap-2">
           {isActive && (
             <button
               onClick={() => endTrip()}
-              className="flex-1 md:flex-none px-6 md:px-10 h-16 bg-red-500/20 hover:bg-red-500/30 text-red-500 border border-red-500/50 rounded-2xl font-bold uppercase tracking-widest text-sm flex items-center justify-center transition-all"
+              className="h-14 flex-1 rounded-2xl border border-red-500/50 bg-red-500/20 text-sm font-bold uppercase tracking-widest text-red-400 active:bg-red-500/30"
             >
               Finalizar
             </button>
@@ -220,11 +415,15 @@ export default function SpeedometerView() {
 
           <button
             onClick={handleStart}
-            className="flex-1 md:flex-none px-8 md:px-12 h-16 bg-cyan-400 text-black rounded-2xl font-black uppercase tracking-[0.2em] text-sm shadow-[0_0_20px_rgba(0,229,255,0.4)] hover:shadow-[0_0_30px_rgba(0,229,255,0.6)] flex items-center justify-center transition-all"
+            className="h-14 flex-[2] rounded-2xl bg-cyan-400 text-sm font-black uppercase tracking-[0.2em] text-black shadow-[0_0_20px_rgba(0,229,255,0.4)] active:bg-cyan-300"
           >
             {isActive && !isPaused ? 'Pausar' : isActive ? 'Continuar' : 'Iniciar'}
           </button>
         </div>
+
+        <p className="mt-2 text-center text-[9px] leading-tight text-white/30">
+          Não opere o dispositivo em movimento. Concentre-se na via.
+        </p>
       </div>
     </div>
   );

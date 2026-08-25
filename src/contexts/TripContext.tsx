@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from 'react';
 import { Trip, TripMode, LocationPoint } from '../types';
 import { useGps } from './GpsContext';
 import { calculateDistance, SpeedSmoother } from '../utils/geo';
@@ -20,6 +27,15 @@ interface TripContextValue {
 
 const TripContext = createContext<TripContextValue | undefined>(undefined);
 
+/** Below this the reading is treated as standing still. */
+const MOVING_THRESHOLD_MS = 0.5;
+/** Keep a path point only every N metres so long rides stay light on RAM. */
+const PATH_MIN_DISTANCE = 8;
+/** ...but never let more than this go by without recording one. */
+const PATH_MAX_INTERVAL = 10000;
+/** Hard ceiling on stored points; a phone should not hold an unbounded array. */
+const PATH_MAX_POINTS = 5000;
+
 export function TripProvider({ children }: { children: React.ReactNode }) {
   const { location, status } = useGps();
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
@@ -27,181 +43,217 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
   const [isPaused, setIsPaused] = useState(false);
   const [currentSpeedMs, setCurrentSpeedMs] = useState(0);
   const [isDrivingMode, setIsDrivingMode] = useState(false);
-  
-  const lastLocationRef = useRef<LocationPoint | null>(null);
-  const lastTimeRef = useRef<number>(0);
+
+  const lastPointRef = useRef<LocationPoint | null>(null);
+  const lastTickRef = useRef<number>(0);
+  const lastStoredPointRef = useRef<LocationPoint | null>(null);
+  const speedRef = useRef(0);
   const smootherRef = useRef(new SpeedSmoother(0.4));
-  const tripIntervalRef = useRef<number | null>(null);
 
-  // Smooth speed updates even without active trip (for the dashboard)
+  // Everything below is computed *outside* the setState updater. React may call
+  // an updater more than once, so an updater that mutates refs (or reads a ref
+  // it just wrote) silently loses data.
   useEffect(() => {
-    if (location) {
-      let speed = 0;
-      if (location.speed !== null && location.speed >= 0) {
-        // GPS provided speed
-        speed = location.speed;
-      } else if (lastLocationRef.current) {
-        // Calculate from coordinates if speed is null
-        const d = calculateDistance(
-          lastLocationRef.current.lat,
-          lastLocationRef.current.lng,
-          location.lat,
-          location.lng
-        );
-        const dt = (location.timestamp - lastLocationRef.current.timestamp) / 1000;
-        if (dt > 0) speed = d / dt;
-      }
-      
-      const smoothed = smootherRef.current.update(speed);
-      setCurrentSpeedMs(smoothed);
-      
-      // Update active trip
-      if (isActive && !isPaused && activeTrip) {
-        setActiveTrip(prev => {
-          if (!prev) return prev;
-          
-          let distAdded = 0;
-          if (lastLocationRef.current) {
-            distAdded = calculateDistance(
-              lastLocationRef.current.lat,
-              lastLocationRef.current.lng,
-              location.lat,
-              location.lng
-            );
-            // Ignore noise (e.g., less than 2 meters jumping)
-            if (distAdded < 2 && smoothed < 1) distAdded = 0;
-          }
-          
-          const newPath = [...prev.path, location];
-          // Don't keep all points indefinitely in memory to avoid lag, maybe subsample?
-          // For now, keeping them all is fine for moderate trips. We'll store every N seconds if needed, but GPS is ~1Hz.
-          
-          const timeSinceLast = location.timestamp - lastTimeRef.current;
-          let newMoving = prev.movingTime;
-          let newStopped = prev.stoppedTime;
-          
-          if (smoothed > 0.5) { // moving
-             newMoving += timeSinceLast;
-          } else {
-             newStopped += timeSinceLast;
-          }
-          lastTimeRef.current = location.timestamp;
-
-          let newAscent = prev.totalAscent;
-          let newDescent = prev.totalDescent;
-          if (lastLocationRef.current && location.alt !== null && lastLocationRef.current.alt !== null) {
-            const dAlt = location.alt - lastLocationRef.current.alt;
-            if (dAlt > 1) newAscent += dAlt;
-            else if (dAlt < -1) newDescent += Math.abs(dAlt);
-          }
-
-          return {
-            ...prev,
-            distance: prev.distance + distAdded,
-            maxSpeed: Math.max(prev.maxSpeed, smoothed),
-            path: newPath,
-            movingTime: newMoving,
-            stoppedTime: newStopped,
-            averageSpeed: newMoving > 0 ? ((prev.distance + distAdded) / (newMoving / 1000)) : 0
-          };
-        });
-      }
-      
-      lastLocationRef.current = location;
-    } else {
+    if (!location) {
       if (status === 'waiting') {
         setCurrentSpeedMs(0);
+        speedRef.current = 0;
         smootherRef.current.reset();
+        lastPointRef.current = null;
       }
+      return;
     }
+
+    const prevPoint = lastPointRef.current;
+
+    // Prefer the GPS-reported speed; fall back to distance over time.
+    let rawSpeed = 0;
+    if (location.speed !== null && location.speed >= 0) {
+      rawSpeed = location.speed;
+    } else if (prevPoint) {
+      const d = calculateDistance(
+        prevPoint.lat,
+        prevPoint.lng,
+        location.lat,
+        location.lng,
+      );
+      const dt = (location.timestamp - prevPoint.timestamp) / 1000;
+      if (dt > 0) rawSpeed = d / dt;
+    }
+
+    const smoothed = smootherRef.current.update(rawSpeed);
+    speedRef.current = smoothed;
+    setCurrentSpeedMs(smoothed);
+
+    if (isActive && !isPaused) {
+      let distAdded = 0;
+      if (prevPoint) {
+        distAdded = calculateDistance(
+          prevPoint.lat,
+          prevPoint.lng,
+          location.lat,
+          location.lng,
+        );
+        // GPS jitter while parked would otherwise inflate the odometer.
+        if (distAdded < 2 && smoothed < 1) distAdded = 0;
+      }
+
+      let ascentAdded = 0;
+      let descentAdded = 0;
+      if (prevPoint && location.alt !== null && prevPoint.alt !== null) {
+        const dAlt = location.alt - prevPoint.alt;
+        if (dAlt > 1) ascentAdded = dAlt;
+        else if (dAlt < -1) descentAdded = Math.abs(dAlt);
+      }
+
+      const now = location.timestamp;
+      const elapsed =
+        lastTickRef.current > 0 ? Math.max(0, now - lastTickRef.current) : 0;
+      lastTickRef.current = now;
+      const isMoving = smoothed > MOVING_THRESHOLD_MS;
+
+      // Decide here whether this point is worth storing, then hand the updater
+      // a plain boolean.
+      const stored = lastStoredPointRef.current;
+      const shouldStore =
+        !stored ||
+        now - stored.timestamp >= PATH_MAX_INTERVAL ||
+        calculateDistance(stored.lat, stored.lng, location.lat, location.lng) >=
+          PATH_MIN_DISTANCE;
+      if (shouldStore) lastStoredPointRef.current = location;
+
+      setActiveTrip((prev) => {
+        if (!prev) return prev;
+        const distance = prev.distance + distAdded;
+        const movingTime = prev.movingTime + (isMoving ? elapsed : 0);
+        const stoppedTime = prev.stoppedTime + (isMoving ? 0 : elapsed);
+        const path =
+          shouldStore && prev.path.length < PATH_MAX_POINTS
+            ? [...prev.path, location]
+            : prev.path;
+
+        return {
+          ...prev,
+          distance,
+          maxSpeed: Math.max(prev.maxSpeed, smoothed),
+          path,
+          movingTime,
+          stoppedTime,
+          totalAscent: prev.totalAscent + ascentAdded,
+          totalDescent: prev.totalDescent + descentAdded,
+          averageSpeed: movingTime > 0 ? distance / (movingTime / 1000) : 0,
+        };
+      });
+    }
+
+    lastPointRef.current = location;
   }, [location, isActive, isPaused, status]);
 
-  // Handle time updates when standing still but active
+  // Keeps the clock honest while standing still or when the GPS stops
+  // delivering fixes. Reads speed from a ref so the interval is not rebuilt on
+  // every reading.
   useEffect(() => {
-    if (isActive && !isPaused) {
-      tripIntervalRef.current = window.setInterval(() => {
-        const now = Date.now();
-        setActiveTrip(prev => {
-          if (!prev) return prev;
-          const timeSinceLast = now - lastTimeRef.current;
-          if (currentSpeedMs <= 0.5) {
-             lastTimeRef.current = now;
-             return {
-               ...prev,
-               stoppedTime: prev.stoppedTime + timeSinceLast
-             };
-          }
-          // If moving, we let the GPS effect handle it for accuracy, but if GPS drops, we need this
-          if (now - (lastLocationRef.current?.timestamp || 0) > 3000) {
-             lastTimeRef.current = now;
-             return {
-                ...prev,
-                movingTime: prev.movingTime + timeSinceLast
-             }
-          }
-          return prev;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (tripIntervalRef.current !== null) {
-        clearInterval(tripIntervalRef.current);
-      }
-    };
-  }, [isActive, isPaused, currentSpeedMs]);
+    if (!isActive || isPaused) return;
 
-  const startTrip = useCallback((mode: TripMode) => {
-    const now = Date.now();
-    setActiveTrip({
-      id: Date.now().toString(),
-      startTime: now,
-      endTime: null,
-      mode,
-      distance: 0,
-      maxSpeed: 0,
-      averageSpeed: 0,
-      movingTime: 0,
-      stoppedTime: 0,
-      totalAscent: 0,
-      totalDescent: 0,
-      path: location ? [location] : []
-    });
-    lastTimeRef.current = now;
-    setIsActive(true);
-    setIsPaused(false);
-  }, [location]);
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      const elapsed =
+        lastTickRef.current > 0 ? Math.max(0, now - lastTickRef.current) : 0;
+      if (elapsed <= 0) return;
 
-  const pauseTrip = useCallback(() => {
-    setIsPaused(true);
-  }, []);
+      const stale = now - (lastPointRef.current?.timestamp ?? 0) > 3000;
+      const isMoving = speedRef.current > MOVING_THRESHOLD_MS;
+
+      // While fixes keep arriving the GPS effect owns the clock; only step in
+      // when parked or when the signal has gone quiet.
+      if (!stale && isMoving) return;
+
+      lastTickRef.current = now;
+      setActiveTrip((prev) =>
+        prev
+          ? {
+              ...prev,
+              movingTime: prev.movingTime + (isMoving ? elapsed : 0),
+              stoppedTime: prev.stoppedTime + (isMoving ? 0 : elapsed),
+            }
+          : prev,
+      );
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [isActive, isPaused]);
+
+  const startTrip = useCallback(
+    (mode: TripMode) => {
+      const now = Date.now();
+      lastTickRef.current = now;
+      lastStoredPointRef.current = location ?? null;
+      setActiveTrip({
+        id: now.toString(),
+        startTime: now,
+        endTime: null,
+        mode,
+        distance: 0,
+        maxSpeed: 0,
+        averageSpeed: 0,
+        movingTime: 0,
+        stoppedTime: 0,
+        totalAscent: 0,
+        totalDescent: 0,
+        path: location ? [location] : [],
+      });
+      setIsActive(true);
+      setIsPaused(false);
+    },
+    [location],
+  );
+
+  const pauseTrip = useCallback(() => setIsPaused(true), []);
 
   const resumeTrip = useCallback(() => {
-    lastTimeRef.current = Date.now();
+    lastTickRef.current = Date.now();
     setIsPaused(false);
   }, []);
 
   const endTrip = useCallback(async () => {
     setIsActive(false);
     setIsPaused(false);
+    lastTickRef.current = 0;
+    lastStoredPointRef.current = null;
     if (activeTrip) {
-      const finalTrip = { ...activeTrip, endTime: Date.now() };
-      await saveTrip(finalTrip);
+      // Only worth keeping if something actually happened.
+      if (activeTrip.distance > 0 || activeTrip.movingTime > 0) {
+        await saveTrip({ ...activeTrip, endTime: Date.now() });
+      }
       setActiveTrip(null);
     }
   }, [activeTrip]);
 
   const resetMaxSpeed = useCallback(() => {
-    setActiveTrip(prev => prev ? { ...prev, maxSpeed: 0 } : prev);
+    setActiveTrip((prev) => (prev ? { ...prev, maxSpeed: 0 } : prev));
   }, []);
 
-  const toggleDrivingMode = useCallback(() => {
-    setIsDrivingMode(prev => !prev);
-  }, []);
+  const toggleDrivingMode = useCallback(
+    () => setIsDrivingMode((prev) => !prev),
+    [],
+  );
 
   return (
-    <TripContext.Provider value={{
-      activeTrip, isActive, isPaused, startTrip, pauseTrip, resumeTrip, endTrip, resetMaxSpeed, currentSpeedMs, isDrivingMode, toggleDrivingMode
-    }}>
+    <TripContext.Provider
+      value={{
+        activeTrip,
+        isActive,
+        isPaused,
+        startTrip,
+        pauseTrip,
+        resumeTrip,
+        endTrip,
+        resetMaxSpeed,
+        currentSpeedMs,
+        isDrivingMode,
+        toggleDrivingMode,
+      }}
+    >
       {children}
     </TripContext.Provider>
   );

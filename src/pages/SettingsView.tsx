@@ -1,14 +1,30 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useGps } from '../contexts/GpsContext';
 import { clearAllTrips } from '../services/storage';
-import { Unit, Theme, TripMode, GpsAccuracy } from '../types';
-import { Trash2, Download, AlertCircle, PlaySquare } from 'lucide-react';
+import { Unit, Theme, GpsAccuracy } from '../types';
+import { unitLabel } from '../utils/geo';
+import { Trash2, Download, PlaySquare, TriangleAlert, Volume2 } from 'lucide-react';
 
 export default function SettingsView() {
   const { settings, updateSettings } = useSettings();
   const { isDemoMode, toggleDemoMode } = useGps();
   const [confirmClear, setConfirmClear] = useState(false);
+  const [cachedCells, setCachedCells] = useState(0);
+
+  // Imported on demand so the Overpass client stays out of the initial bundle.
+  useEffect(() => {
+    import('../services/roadData')
+      .then(({ hazardCacheSize }) => hazardCacheSize())
+      .then(setCachedCells)
+      .catch(() => setCachedCells(0));
+  }, []);
+
+  const handleClearHazards = async () => {
+    const { clearHazardCache } = await import('../services/roadData');
+    await clearHazardCache();
+    setCachedCells(0);
+  };
 
   const handleClearHistory = async () => {
     if (confirmClear) {
@@ -25,10 +41,10 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="p-6 h-full flex flex-col bg-[#050A15] text-white">
-      <h2 className="text-2xl font-black mb-6 tracking-wide">Configurações</h2>
+    <div className="flex h-full min-h-0 flex-col bg-[#050A15] px-4 pt-4 text-white">
+      <h2 className="mb-4 shrink-0 text-xl font-black tracking-wide">Configurações</h2>
       
-      <div className="space-y-8 flex-1 overflow-y-auto pb-8 pr-2">
+      <div className="scroll-area min-h-0 flex-1 space-y-6 overflow-y-auto pb-nav">
         
         {/* Unidade */}
         <section>
@@ -100,9 +116,97 @@ export default function SettingsView() {
                   onChange={(e) => updateSettings({ speedAlert: Number(e.target.value) })}
                   className="w-24 bg-white/10 p-3 rounded-xl text-center font-black text-xl outline-none focus:ring-2 focus:ring-cyan-400 border border-white/20 text-white"
                 />
-                <span className="font-bold text-white/60">{settings.unit}</span>
+                <span className="font-bold text-white/60">{unitLabel(settings.unit)}</span>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Alertas na via */}
+        <section>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/40">Alertas na via</h3>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-col pr-2">
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <TriangleAlert className="h-5 w-5 shrink-0 text-amber-400" /> Lombadas e radares
+                </span>
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/40">
+                  Avisa o que vem pela frente usando dados do OpenStreetMap
+                </span>
+              </div>
+              <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={settings.hazardAlerts}
+                  onChange={(e) => updateSettings({ hazardAlerts: e.target.checked })}
+                />
+                <div className="peer h-6 w-11 rounded-full border border-white/20 bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+              <div className="flex min-w-0 flex-col pr-2">
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <Volume2 className="h-5 w-5 shrink-0 text-cyan-400" /> Aviso sonoro
+                </span>
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/40">
+                  Toca um bipe ao se aproximar
+                </span>
+              </div>
+              <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={settings.audioAlerts}
+                  onChange={(e) => updateSettings({ audioAlerts: e.target.checked })}
+                />
+                <div className="peer h-6 w-11 rounded-full border border-white/20 bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-400 peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+              </label>
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <p className="text-[10px] leading-relaxed text-white/40">
+                Dados colaborativos do OpenStreetMap (ODbL). Podem estar
+                incompletos ou desatualizados — sempre siga a sinalização da via.
+              </p>
+              <button
+                onClick={handleClearHazards}
+                className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold uppercase tracking-widest text-white/60 active:bg-white/10"
+              >
+                Limpar cache do mapa ({cachedCells} {cachedCells === 1 ? 'área' : 'áreas'})
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Precisão do GPS */}
+        <section>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/40">Precisão do GPS</h3>
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl">
+            {[
+              { id: 'high', label: 'Alta', hint: 'Mais precisa, consome mais bateria' },
+              { id: 'balanced', label: 'Equilibrada', hint: 'Boa precisão com menos bateria' },
+              { id: 'low', label: 'Econômica', hint: 'Menor precisão, poupa bateria' },
+            ].map((g) => (
+              <label
+                key={g.id}
+                className="flex cursor-pointer items-center border-b border-white/10 p-4 transition-colors last:border-0 active:bg-white/10"
+              >
+                <input
+                  type="radio"
+                  name="gpsAccuracy"
+                  checked={settings.gpsAccuracy === g.id}
+                  onChange={() => updateSettings({ gpsAccuracy: g.id as GpsAccuracy })}
+                  className="mr-4 h-5 w-5 shrink-0 accent-cyan-400"
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-base font-bold">{g.label}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-white/40">{g.hint}</span>
+                </span>
+              </label>
+            ))}
           </div>
         </section>
 
