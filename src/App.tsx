@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GpsProvider } from './contexts/GpsContext';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { TripProvider, useTrip } from './contexts/TripContext';
@@ -14,6 +14,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import SpeedometerFullscreen from './components/SpeedometerFullscreen';
 import { HazardProvider } from './contexts/HazardContext';
 import ResumeTripPrompt from './components/ResumeTripPrompt';
+import { useWakeLock } from './hooks/useWakeLock';
 
 export type Route = 'speedometer' | 'trip' | 'map' | 'history' | 'settings';
 
@@ -22,43 +23,17 @@ function AppContent() {
   const [isBooting, setIsBooting] = useState(true);
   const { settings } = useSettings();
   const { isDrivingMode } = useTrip();
-  const wakeLockRef = useRef<any>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 1200);
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (!settings.keepScreenOn || isBooting || !('wakeLock' in navigator)) return;
-
-    let released = false;
-
-    const requestWakeLock = async () => {
-      // The browser rejects the request whenever the page is not visible;
-      // that is expected, not an error worth surfacing.
-      if (document.visibilityState !== 'visible') return;
-      try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-      } catch {
-        /* screen lock unavailable - the app still works */
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (!released && document.visibilityState === 'visible') requestWakeLock();
-    };
-
-    requestWakeLock();
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      released = true;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      wakeLockRef.current?.release?.().catch(() => {});
-      wakeLockRef.current = null;
-    };
-  }, [settings.keepScreenOn, isBooting]);
+  // Fullscreen exists to be watched while riding, so it is the one place the
+  // screen must never sleep. Elsewhere the rider's setting decides.
+  const wakeLock = useWakeLock(
+    !isBooting && (settings.keepScreenOn || isDrivingMode),
+  );
 
   if (isBooting) return <BootScreen />;
 
@@ -71,7 +46,7 @@ function AppContent() {
       {/* Fullscreen speedometer replaces the shell entirely - no nav, no map,
           nothing but speed and what is coming up on the road. */}
       {isDrivingMode ? (
-        <SpeedometerFullscreen />
+        <SpeedometerFullscreen wakeLock={wakeLock} />
       ) : (
         <Layout currentRoute={currentRoute} onNavigate={setCurrentRoute}>
           {currentRoute === 'speedometer' && <SpeedometerView />}

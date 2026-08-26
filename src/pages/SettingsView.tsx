@@ -4,7 +4,8 @@ import { useGps } from '../contexts/GpsContext';
 import { clearAllTrips } from '../services/storage';
 import { Unit, Theme, GpsAccuracy } from '../types';
 import { unitLabel } from '../utils/geo';
-import { Trash2, Download, PlaySquare, TriangleAlert, Volume2 } from 'lucide-react';
+import { isWakeLockSupported } from '../hooks/useWakeLock';
+import { Trash2, Download, PlaySquare, TriangleAlert, Volume2, Sun } from 'lucide-react';
 
 export default function SettingsView() {
   const { settings, updateSettings } = useSettings();
@@ -119,6 +120,39 @@ export default function SettingsView() {
                 <span className="font-bold text-white/60">{unitLabel(settings.unit)}</span>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Tela */}
+        <section>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/55">Tela</h3>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-col pr-2">
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <Sun className="h-5 w-5 shrink-0 text-amber-400" /> Manter tela ligada
+                </span>
+                <span className="mt-1 text-[11px] uppercase tracking-wider text-white/55">
+                  {isWakeLockSupported()
+                    ? 'Impede o celular de apagar a tela durante o uso'
+                    : 'Indisponível neste navegador'}
+                </span>
+              </div>
+              <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={settings.keepScreenOn}
+                  disabled={!isWakeLockSupported()}
+                  onChange={(e) => updateSettings({ keepScreenOn: e.target.checked })}
+                />
+                <div className="peer h-6 w-11 rounded-full border border-white/20 bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full peer-disabled:opacity-40 peer-focus:outline-none"></div>
+              </label>
+            </div>
+            <p className="mt-4 border-t border-white/10 pt-4 text-[11px] leading-relaxed text-white/55">
+              No modo velocímetro em tela cheia a tela é mantida ligada de
+              qualquer forma — é para isso que esse modo existe.
+            </p>
           </div>
         </section>
 

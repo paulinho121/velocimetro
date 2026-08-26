@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Camera, Minimize2, Pause, Play, Square, TriangleAlert } from 'lucide-react';
+import {
+  Camera,
+  Minimize2,
+  Pause,
+  Play,
+  Square,
+  Sun,
+  TriangleAlert,
+} from 'lucide-react';
 import { useGps } from '../contexts/GpsContext';
 import { useHazards } from '../contexts/HazardContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -10,6 +18,7 @@ import { formatTime } from '../utils/format';
 import { HazardAhead } from '../types';
 import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
 import { useClock } from '../hooks/useClock';
+import { WakeLockStatus } from '../hooks/useWakeLock';
 
 const HAZARD_LABEL: Record<string, string> = {
   bump: 'Lombada',
@@ -127,7 +136,18 @@ export function requestAppFullscreen() {
   }
 }
 
-export default function SpeedometerFullscreen() {
+const WAKE_LABEL: Record<WakeLockStatus, string> = {
+  active: 'Tela sempre ligada',
+  idle: 'Tela pode apagar',
+  blocked: 'Bloqueado pelo sistema',
+  unsupported: 'Sem suporte no navegador',
+};
+
+export default function SpeedometerFullscreen({
+  wakeLock,
+}: {
+  wakeLock: WakeLockStatus;
+}) {
   const {
     activeTrip,
     isActive,
@@ -206,6 +226,21 @@ export default function SpeedometerFullscreen() {
           />
           <span className="truncate text-[10px] font-bold uppercase tracking-widest text-white/55">
             {isFullscreen ? 'Tela cheia' : 'Velocímetro'}
+          </span>
+
+          {/* A rider needs to know the screen will stay on *before* setting
+              off, so say it rather than failing silently later. */}
+          <span
+            title={WAKE_LABEL[wakeLock]}
+            className={clsx(
+              'flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5',
+              wakeLock === 'active'
+                ? 'border-emerald-400/40 text-emerald-400'
+                : 'border-amber-400/40 text-amber-400',
+            )}
+          >
+            <Sun className="h-3 w-3" aria-hidden="true" />
+            <span className="sr-only">{WAKE_LABEL[wakeLock]}</span>
           </span>
         </div>
 
