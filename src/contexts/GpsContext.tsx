@@ -20,6 +20,10 @@ interface GpsContextValue {
   errorMessage: string | null;
   /** True while the page is not a secure context (GPS is blocked by the browser). */
   isInsecureContext: boolean;
+  /** When the last usable fix arrived; null if none ever has. */
+  lastFixAt: number | null;
+  /** When we started watching; lets the UI say how long it has been trying. */
+  trackingSince: number | null;
 }
 
 const GpsContext = createContext<GpsContextValue | undefined>(undefined);
@@ -39,6 +43,8 @@ export function GpsProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastFixAt, setLastFixAt] = useState<number | null>(null);
+  const [trackingSince, setTrackingSince] = useState<number | null>(null);
   const [retryToken, setRetryToken] = useState(0);
 
   // Geolocation is only handed out on https:// or localhost. Phones hitting a
@@ -58,6 +64,7 @@ export function GpsProvider({ children }: { children: React.ReactNode }) {
 
     setStatus('connected');
     setErrorMessage(null);
+    setTrackingSince(Date.now());
 
     let speed = 0;
     let lat = -23.55052;
@@ -87,6 +94,7 @@ export function GpsProvider({ children }: { children: React.ReactNode }) {
         accuracy: 5,
         timestamp: Date.now(),
       });
+      setLastFixAt(Date.now());
     }, 1000);
 
     return () => {
@@ -116,10 +124,12 @@ export function GpsProvider({ children }: { children: React.ReactNode }) {
 
     setStatus('locating');
     setErrorMessage(null);
+    setTrackingSince(Date.now());
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setErrorMessage(null);
+        setLastFixAt(Date.now());
         setStatus(pos.coords.accuracy > 30 ? 'weak' : 'connected');
         setLocation({
           lat: pos.coords.latitude,
@@ -182,6 +192,8 @@ export function GpsProvider({ children }: { children: React.ReactNode }) {
         accuracy: location?.accuracy ?? null,
         errorMessage,
         isInsecureContext,
+        lastFixAt,
+        trackingSince,
       }}
     >
       {children}

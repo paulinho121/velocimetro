@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import {
+  AlertTriangle,
   Camera,
   Minimize2,
   Pause,
@@ -18,6 +19,8 @@ import { formatTime } from '../utils/format';
 import { HazardAhead } from '../types';
 import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
 import { useClock } from '../hooks/useClock';
+import { useNow } from '../hooks/useNow';
+import { describeGpsState } from '../utils/gpsState';
 import { WakeLockStatus } from '../hooks/useWakeLock';
 
 const HAZARD_LABEL: Record<string, string> = {
@@ -159,10 +162,16 @@ export default function SpeedometerFullscreen({
     currentSpeedMs,
     toggleDrivingMode,
   } = useTrip();
-  const { status } = useGps();
+  const { status, errorMessage, lastFixAt, trackingSince } = useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
   const clock = useClock();
+
+  // Only ticks while the GPS is unhappy; a good signal leaves the screen idle.
+  const gpsUnhealthy =
+    lastFixAt === null || Date.now() - lastFixAt > 3000 || status === 'denied';
+  const now = useNow(gpsUnhealthy);
+  const notice = describeGpsState(status, errorMessage, lastFixAt, trackingSince, now);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -261,6 +270,37 @@ export default function SpeedometerFullscreen({
           </button>
         </div>
       </div>
+
+      {/* ---- GPS trouble, said out loud ---- */}
+      {/* Without this the rider just sees a grey dot and a zero, which is
+          indistinguishable from a broken app. */}
+      {notice && notice.tone !== 'info' && (
+        <div
+          role="status"
+          className={clsx(
+            'mx-3 mb-1 flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2',
+            notice.tone === 'error'
+              ? 'border-red-500/40 bg-red-500/15'
+              : 'border-amber-400/40 bg-amber-400/15',
+          )}
+        >
+          <AlertTriangle
+            className={clsx(
+              'h-5 w-5 shrink-0',
+              notice.tone === 'error' ? 'text-red-400' : 'text-amber-400',
+            )}
+            aria-hidden="true"
+          />
+          <p
+            className={clsx(
+              'flex-1 text-[clamp(0.75rem,2.6vmin,1rem)] leading-tight',
+              notice.tone === 'error' ? 'text-red-200' : 'text-amber-200',
+            )}
+          >
+            {notice.message}
+          </p>
+        </div>
+      )}
 
       {/* ---- Hazard warning ---- */}
       {hazardAhead && (

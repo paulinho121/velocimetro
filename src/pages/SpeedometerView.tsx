@@ -17,6 +17,7 @@ import {
   Expand,
   Mountain,
   RefreshCw,
+  Satellite,
   TriangleAlert,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -24,6 +25,8 @@ import { HazardAhead } from '../types';
 import { requestAppFullscreen } from '../components/SpeedometerFullscreen';
 import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
 import { useClock } from '../hooks/useClock';
+import { useNow } from '../hooks/useNow';
+import { describeGpsState } from '../utils/gpsState';
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: 'Aguardando',
@@ -202,7 +205,8 @@ export default function SpeedometerView() {
     currentSpeedMs,
     toggleDrivingMode,
   } = useTrip();
-  const { status, location, accuracy, errorMessage, retry } = useGps();
+  const { status, location, accuracy, errorMessage, retry, lastFixAt, trackingSince } =
+    useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
   const clock = useClock();
@@ -234,8 +238,11 @@ export default function SpeedometerView() {
     else startTrip(settings.defaultMode);
   };
 
-  const showBanner =
-    errorMessage !== null && (status === 'denied' || status === 'unavailable');
+  // Tick only while something is wrong, so a healthy screen stays idle.
+  const gpsUnhealthy =
+    lastFixAt === null || Date.now() - lastFixAt > 3000 || status === 'denied';
+  const now = useNow(gpsUnhealthy);
+  const notice = describeGpsState(status, errorMessage, lastFixAt, trackingSince, now);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#050A15]">
@@ -290,20 +297,59 @@ export default function SpeedometerView() {
         </button>
       </header>
 
-      {/* ---- GPS problem banner ---- */}
-      {showBanner && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-red-500/30 bg-red-500/10 px-3 py-2">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
-          <p className="flex-1 text-[11px] leading-tight text-red-200">
-            {errorMessage}
-          </p>
-          <button
-            onClick={retry}
-            aria-label="Tentar novamente"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/20 text-red-200 active:bg-red-500/30"
+      {/* ---- GPS state, spoken plainly ---- */}
+      {notice && (
+        <div
+          role="status"
+          className={clsx(
+            'flex shrink-0 items-center gap-2 border-b px-3 py-2',
+            notice.tone === 'error'
+              ? 'border-red-500/30 bg-red-500/10'
+              : notice.tone === 'warn'
+                ? 'border-amber-400/30 bg-amber-400/10'
+                : 'border-white/10 bg-white/5',
+          )}
+        >
+          {notice.tone === 'info' ? (
+            <Satellite
+              className="h-4 w-4 shrink-0 animate-pulse text-cyan-400"
+              aria-hidden="true"
+            />
+          ) : (
+            <AlertTriangle
+              className={clsx(
+                'h-4 w-4 shrink-0',
+                notice.tone === 'error' ? 'text-red-400' : 'text-amber-400',
+              )}
+              aria-hidden="true"
+            />
+          )}
+          <p
+            className={clsx(
+              'flex-1 text-[11px] leading-tight',
+              notice.tone === 'error'
+                ? 'text-red-200'
+                : notice.tone === 'warn'
+                  ? 'text-amber-200'
+                  : 'text-white/70',
+            )}
           >
-            <RefreshCw className="h-4 w-4" />
-          </button>
+            {notice.message}
+          </p>
+          {notice.canRetry && (
+            <button
+              onClick={retry}
+              aria-label="Tentar novamente"
+              className={clsx(
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                notice.tone === 'error'
+                  ? 'bg-red-500/20 text-red-200 active:bg-red-500/30'
+                  : 'bg-amber-400/20 text-amber-200 active:bg-amber-400/30',
+              )}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
 
