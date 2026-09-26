@@ -12,6 +12,9 @@ export interface Settings {
   audioAlerts: boolean;
   speedAlert: number | null; // e.g., limit in chosen unit
   hazardAlerts: boolean; // warn about speed bumps / cameras ahead
+  streetName: boolean; // show the current street (Nominatim)
+  weather: boolean; // show weather and warn about rain (Open-Meteo)
+  rainRadar: boolean; // rain radar layer on the map (RainViewer)
   isSetupComplete: boolean;
 }
 
@@ -38,6 +41,12 @@ export interface Trip {
   totalAscent: number; // Total ascent in meters
   totalDescent: number; // Total descent in meters
   path: LocationPoint[];
+  /**
+   * Where the ride started and ended, e.g. "Aldeota, Fortaleza". Undefined
+   * until looked up; null when the lookup found nothing to call it.
+   */
+  startPlace?: string | null;
+  endPlace?: string | null;
 }
 
 export type GpsStatus = 'waiting' | 'locating' | 'connected' | 'weak' | 'unavailable' | 'denied';

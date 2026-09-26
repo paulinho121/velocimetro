@@ -34,6 +34,9 @@ export const DEFAULT_SETTINGS: Settings = {
   audioAlerts: false,
   speedAlert: null,
   hazardAlerts: true,
+  streetName: true,
+  weather: true,
+  rainRadar: false,
   isSetupComplete: false,
 };
 

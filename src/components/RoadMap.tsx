@@ -1,11 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GeoJSONSource, Map as MapLibreMap, Popup, setWorkerUrl } from 'maplibre-gl';
+import {
+  GeoJSONSource,
+  Map as MapLibreMap,
+  Popup,
+  RasterTileSource,
+  setWorkerUrl,
+} from 'maplibre-gl';
 // MapLibre finds its worker next to its own file, which is not where it ends
 // up once Vite has bundled it. Have Vite bundle the worker too and say where.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { GeoJSON } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { LocateFixed } from 'lucide-react';
+import clsx from 'clsx';
+import { CloudRain, LocateFixed } from 'lucide-react';
+import { RADAR_MAX_ZOOM, RADAR_REFRESH_MS, getLatestRadarFrame } from '../services/radar';
 import { LocationPoint, RoadHazard } from '../types';
 import {
   EMPTY_COLLECTION,
@@ -39,7 +47,13 @@ interface RoadMapProps {
   hazards: RoadHazard[];
   /** Called when the basemap cannot be shown (no WebGL, offline...). */
   onUnavailable: () => void;
+  showRadar: boolean;
+  onToggleRadar: () => void;
 }
+
+type RadarState = { status: 'off' } | { status: 'loading' } | { status: 'error' } | { status: 'on'; time: number };
+
+const RADAR_ATTRIBUTION = '<a href="https://www.rainviewer.com/" target="_blank">RainViewer</a>';
 
 function addLayers(map: MapLibreMap) {
   map.addSource('trip', { type: 'geojson', data: EMPTY_COLLECTION });
@@ -128,12 +142,23 @@ function setData(map: MapLibreMap, id: string, data: GeoJSON) {
   (map.getSource(id) as GeoJSONSource | undefined)?.setData(data);
 }
 
-export default function RoadMap({ path, location, hazards, onUnavailable }: RoadMapProps) {
+export default function RoadMap({
+  path,
+  location,
+  hazards,
+  onUnavailable,
+  showRadar,
+  onToggleRadar,
+}: RoadMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [ready, setReady] = useState(false);
   /** Keep the rider centred until they pan away to look around. */
   const [follow, setFollow] = useState(true);
+  /** Whether the camera has been brought in to the rider yet. */
+  const centeredRef = useRef(false);
+  const locationRef = useRef(location);
+  locationRef.current = location;
 
   // Latest callback without re-creating the map when the parent re-renders.
   const onUnavailableRef = useRef(onUnavailable);
@@ -143,12 +168,17 @@ export default function RoadMap({ path, location, hazards, onUnavailable }: Road
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Open straight onto the rider when we know where they are: starting from
+    // the whole of Brazil means downloading a view nobody looks at.
+    const start = locationRef.current;
+    if (start) centeredRef.current = true;
+
     let map: MapLibreMap;
     try {
       map = new MapLibreMap({
         container: containerRef.current,
         style: STYLE_URL,
-        ...FALLBACK_VIEW,
+        ...(start ? { center: toLngLat(start), zoom: FOLLOW_ZOOM } : FALLBACK_VIEW),
         attributionControl: { compact: true },
         pitchWithRotate: false,
       });
@@ -159,17 +189,17 @@ export default function RoadMap({ path, location, hazards, onUnavailable }: Road
     }
     mapRef.current = map;
 
-    map.on('load', () => {
+    // Our layers only need the style, not the basemap tiles; waiting for
+    // 'load' (which waits for every tile in view) left the ride undrawn for
+    // seconds on a slow connection.
+    let styleArrived = false;
+    map.once('style.load', () => {
+      styleArrived = true;
       addLayers(map);
       setReady(true);
     });
     // A failed tile is just a blank square, but without the style itself
-    // (offline, style server down) there is no map at all. 'styledata' marks
-    // the style arriving; 'load' would be too late, as it waits for tiles.
-    let styleArrived = false;
-    map.once('styledata', () => {
-      styleArrived = true;
-    });
+    // (offline, style server down) there is no map at all.
     map.on('error', () => {
       if (!styleArrived) onUnavailableRef.current();
     });
@@ -200,6 +230,63 @@ export default function RoadMap({ path, location, hazards, onUnavailable }: Road
       map.remove();
     };
   }, []);
+
+  // ---- Rain radar ----------------------------------------------------------------
+  const [radar, setRadar] = useState<RadarState>({ status: 'off' });
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+
+    const removeRadar = () => {
+      if (map.getLayer('radar')) map.removeLayer('radar');
+      if (map.getSource('radar')) map.removeSource('radar');
+    };
+
+    if (!showRadar) {
+      removeRadar();
+      setRadar({ status: 'off' });
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const frame = await getLatestRadarFrame();
+        if (cancelled || !mapRef.current) return;
+        if (!frame) throw new Error('no radar frame');
+        const source = map.getSource('radar') as RasterTileSource | undefined;
+        if (source) {
+          source.setTiles([frame.tiles]);
+        } else {
+          map.addSource('radar', {
+            type: 'raster',
+            tiles: [frame.tiles],
+            tileSize: 256,
+            // Free tier stops at 7; MapLibre stretches those tiles further in.
+            maxzoom: RADAR_MAX_ZOOM,
+            attribution: RADAR_ATTRIBUTION,
+          });
+          // Under the ride, so rain never hides the route or the hazards.
+          map.addLayer(
+            { id: 'radar', type: 'raster', source: 'radar', paint: { 'raster-opacity': 0.6 } },
+            'trip-casing',
+          );
+        }
+        setRadar({ status: 'on', time: frame.time });
+      } catch {
+        if (!cancelled) setRadar({ status: 'error' });
+      }
+    };
+
+    setRadar({ status: 'loading' });
+    load();
+    const id = setInterval(load, RADAR_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [ready, showRadar]);
 
   // ---- Keep the layers in step with the ride ---------------------------------
   useEffect(() => {
@@ -237,14 +324,15 @@ export default function RoadMap({ path, location, hazards, onUnavailable }: Road
     if (!ready || !map || !follow) return;
 
     if (location) {
-      // Jump the first time, glide afterwards: easing in from the whole of
-      // Brazil on every open would be slow and dizzying.
-      const far = map.getZoom() < FOLLOW_ZOOM - 3;
-      map[far ? 'jumpTo' : 'easeTo']({
-        center: toLngLat(location),
-        zoom: far ? FOLLOW_ZOOM : map.getZoom(),
-        ...(far ? {} : { duration: 600 }),
-      });
+      // Jump in to street level the first time; afterwards only glide the
+      // centre, so a rider who pinched out (to watch rain coming, say) keeps
+      // their zoom instead of being yanked back on the next fix.
+      if (!centeredRef.current) {
+        centeredRef.current = true;
+        map.jumpTo({ center: toLngLat(location), zoom: FOLLOW_ZOOM });
+      } else {
+        map.easeTo({ center: toLngLat(location), duration: 600 });
+      }
       return;
     }
 
@@ -256,6 +344,27 @@ export default function RoadMap({ path, location, hazards, onUnavailable }: Road
   return (
     <div className="relative h-full w-full overflow-hidden rounded-3xl">
       <div ref={containerRef} className="h-full w-full" />
+      <button
+        type="button"
+        onClick={onToggleRadar}
+        aria-pressed={showRadar}
+        aria-label="Radar de chuva"
+        className={clsx(
+          'absolute right-3 top-3 flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold shadow-lg backdrop-blur',
+          showRadar
+            ? 'border-sky-400/50 bg-sky-500/80 text-white'
+            : 'border-white/15 bg-[#050A15]/85 text-white/70',
+        )}
+      >
+        <CloudRain className="h-4 w-4" />
+        {radar.status === 'on'
+          ? `Chuva · ${new Date(radar.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+          : radar.status === 'loading'
+            ? 'Chuva…'
+            : radar.status === 'error'
+              ? 'Radar indisponível'
+              : 'Chuva'}
+      </button>
       {!follow && (
         <button
           type="button"
