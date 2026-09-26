@@ -1,0 +1,33 @@
+name: Relatar bug
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o problema e o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abra o modo velocímetro
+        2. Comece a dirigir
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: dispositivo
+    attributes:
+      label: Celular / computador e navegador
+      placeholder: ex. Samsung A54, Chrome 128 — ou iPhone 13, Safari (PWA instalado)
+    validations:
+      required: true
+  - type: textarea
+    id: extras
+    attributes:
+      label: Prints, vídeo ou erros do console
+      description: Opcional, mas ajuda muito.

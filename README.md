@@ -1,5 +1,9 @@
 # VELOX — Velocímetro GPS
 
+[![CI](https://github.com/paulinho121/velocimetro/actions/workflows/ci.yml/badge.svg)](https://github.com/paulinho121/velocimetro/actions/workflows/ci.yml)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
+[![PRs bem-vindos](https://img.shields.io/badge/PRs-bem--vindos-brightgreen.svg)](CONTRIBUTING.md)
+
 Velocímetro digital por GPS com alerta de lombadas e radares. Roda inteiramente
 no navegador: sem servidor, sem banco, sem chave de API.
 
@@ -39,6 +43,17 @@ certificado autoassinado.
 | `npm run build` | Build de produção em `dist/` |
 | `npm run preview` | Serve o build de produção localmente |
 | `npm run lint` | Checagem de tipos (`tsc --noEmit`) |
+| `npm test` | Roda os testes (Vitest) |
+| `npm run test:watch` | Testes em modo observação |
+
+## Contribuindo
+
+O projeto é aberto a contribuições. Leia o [guia de contribuição](CONTRIBUTING.md)
+para preparar o ambiente, entender a organização do código e abrir seu primeiro
+Pull Request. Bugs e ideias vão nas [issues](https://github.com/paulinho121/velocimetro/issues).
+
+Lombada ou radar errado? Os dados vêm do OpenStreetMap — dá para
+[corrigir direto lá](https://www.openstreetmap.org/fixthemap).
 
 ## Deploy na Vercel
 
@@ -73,3 +88,7 @@ toleram polling.
 
 Os dados são colaborativos e podem estar incompletos ou desatualizados. O app é
 informativo e **não substitui a sinalização da via**.
+
+## Licença
+
+Código sob a [licença MIT](LICENSE). Os dados do OpenStreetMap seguem a ODbL.

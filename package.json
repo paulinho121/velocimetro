@@ -1,7 +1,12 @@
 {
-  "name": "react-example",
+  "name": "velox",
   "private": true,
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paulinho121/velocimetro.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
