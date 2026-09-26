@@ -6,6 +6,7 @@ no navegador: sem servidor, sem banco, sem chave de API.
 - Velocidade, distância, altitude, bússola e histórico de viagens
 - Modo velocímetro em tela cheia, pensado para suporte de carro
 - Alerta de lombadas e radares à frente, com o limite do radar
+- Mapa com ruas, trajeto em tempo real, lombadas e radares
 - Instalável como PWA
 
 ## Rodando localmente
@@ -70,6 +71,10 @@ via [Overpass API](https://overpass-api.de/), sob licença
 As consultas são cacheadas no dispositivo por célula de ~5,5 km, com validade de
 uma semana, porque as instâncias públicas do Overpass são limitadas por IP e não
 toleram polling.
+
+O mapa de fundo vem do [OpenFreeMap](https://openfreemap.org/) (também dados do
+OpenStreetMap), gratuito e sem chave. Sem internet, a aba Mapa mostra só o
+rastro do GPS.
 
 Os dados são colaborativos e podem estar incompletos ou desatualizados. O app é
 informativo e **não substitui a sinalização da via**.

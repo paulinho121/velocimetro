@@ -1,7 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useTrip } from '../contexts/TripContext';
+import { useGps } from '../contexts/GpsContext';
+import { useHazards } from '../contexts/HazardContext';
 import { LocationPoint } from '../types';
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, WifiOff } from 'lucide-react';
+
+// MapLibre is a large bundle; only riders who open this tab download it.
+const RoadMap = lazy(() => import('../components/RoadMap'));
 
 function SvgMap({ path }: { path: LocationPoint[] }) {
   const { minLat, maxLat, minLng, maxLng } = useMemo(() => {
@@ -64,23 +69,51 @@ function SvgMap({ path }: { path: LocationPoint[] }) {
 
 export default function MapView() {
   const { activeTrip } = useTrip();
+  const { location } = useGps();
+  const { hazards } = useHazards();
+  /** Basemap could not load (offline, no WebGL): fall back to the bare trace. */
+  const [basemapFailed, setBasemapFailed] = useState(false);
+
+  const path = activeTrip?.path ?? [];
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#050A15] px-4 pt-4 pb-nav text-white">
-      <h2 className="mb-3 shrink-0 text-xl font-black tracking-wide">Mapa da viagem</h2>
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-2 backdrop-blur-xl">
-        {activeTrip ? (
-          <SvgMap path={activeTrip.path} />
+      <h2 className="mb-3 shrink-0 text-xl font-black tracking-wide">Mapa</h2>
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl">
+        {!basemapFailed ? (
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center text-sm text-white/50">
+                Carregando mapa…
+              </div>
+            }
+          >
+            <RoadMap
+              path={path}
+              location={location}
+              hazards={hazards}
+              onUnavailable={() => setBasemapFailed(true)}
+            />
+          </Suspense>
+        ) : activeTrip ? (
+          <div className="h-full p-2">
+            <SvgMap path={path} />
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center text-white/50 p-6">
-            <MapIcon className="w-16 h-16 mb-4 opacity-30" />
-            <h2 className="text-lg font-bold mb-2 text-white">Nenhum percurso</h2>
-            <p className="text-sm">Inicie uma viagem para registrar seu trajeto.</p>
+            <WifiOff className="w-16 h-16 mb-4 opacity-30" />
+            <h2 className="text-lg font-bold mb-2 text-white">Mapa indisponível</h2>
+            <p className="text-sm">
+              Sem internet não dá para carregar as ruas. Inicie uma viagem para ver ao menos o
+              trajeto.
+            </p>
           </div>
         )}
       </div>
       <p className="mt-3 shrink-0 text-center text-[11px] font-bold uppercase tracking-widest text-white/55">
-        O mapa exibe o rastro do seu GPS no plano cartesiano.
+        {basemapFailed
+          ? 'Sem mapa de fundo: exibindo só o rastro do GPS.'
+          : 'Toque em uma lombada ou radar para ver detalhes.'}
       </p>
     </div>
   );
