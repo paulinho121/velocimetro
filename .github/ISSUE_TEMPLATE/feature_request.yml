@@ -1,0 +1,23 @@
+name: Sugerir funcionalidade
+description: Uma ideia para melhorar o VELOX
+labels: [melhoria]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve?
+      description: Conte a situação em que você sentiu falta disso.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Como você imagina a solução?
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribuir
+    attributes:
+      label: Participação
+      options:
+        - label: Quero implementar isso eu mesmo

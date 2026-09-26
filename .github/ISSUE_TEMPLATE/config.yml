@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Lombada ou radar errado no mapa
+    url: https://www.openstreetmap.org/fixthemap
+    about: Os dados vêm do OpenStreetMap. Corrija direto lá e o VELOX passa a usar a informação atualizada.
+  - name: Vulnerabilidade de segurança
+    url: https://github.com/paulinho121/velocimetro/security/advisories/new
+    about: Relate de forma privada, não em issue pública.
