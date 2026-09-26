@@ -28,6 +28,9 @@ import { useClock } from '../hooks/useClock';
 import { useNow } from '../hooks/useNow';
 import { describeGpsState } from '../utils/gpsState';
 import { hazardLabel } from '../utils/hazards';
+import { useStreetName } from '../hooks/useStreetName';
+import { useWeather } from '../hooks/useWeather';
+import { RainBanner, StreetBar, WeatherChip } from '../components/RoadInfo';
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: 'Aguardando',
@@ -202,6 +205,8 @@ export default function SpeedometerView() {
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
   const clock = useClock();
+  const place = useStreetName(location, settings.streetName);
+  const weather = useWeather(location, settings.weather);
 
   const currentSpeed = convertSpeed(currentSpeedMs, settings.unit);
   // Sweeps between the 1 Hz fixes so the digits climb instead of teleporting.
@@ -345,6 +350,13 @@ export default function SpeedometerView() {
         </div>
       )}
 
+      {/* ---- Where the rider is ---- */}
+      {place && (place.street || place.area) && (
+        <div className="shrink-0 border-b border-white/10 px-3 py-2">
+          <StreetBar place={place} />
+        </div>
+      )}
+
       {/* ---- Next hazard on the road ---- */}
       {hazardAhead && (
         <HazardBanner
@@ -353,6 +365,8 @@ export default function SpeedometerView() {
           unit={settings.unit}
         />
       )}
+
+      {weather && <RainBanner weather={weather} />}
 
       {/* ---- Speed dial ---- */}
       <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 px-3 py-2">
@@ -407,7 +421,7 @@ export default function SpeedometerView() {
         </div>
 
         {/* ---- Compass + altitude chips (in flow, never over the dial) ---- */}
-        {(heading !== null || altitude !== null) && (
+        {(heading !== null || altitude !== null || weather !== null) && (
           <div className="flex shrink-0 gap-2">
             {heading !== null && (
               <Chip
@@ -424,6 +438,7 @@ export default function SpeedometerView() {
                 suffix="m"
               />
             )}
+            {weather && <WeatherChip weather={weather} />}
           </div>
         )}
 

@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useTrip } from '../contexts/TripContext';
 import { useGps } from '../contexts/GpsContext';
 import { useHazards } from '../contexts/HazardContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { LocationPoint } from '../types';
 import { Map as MapIcon, WifiOff } from 'lucide-react';
 
@@ -71,6 +72,7 @@ export default function MapView() {
   const { activeTrip } = useTrip();
   const { location } = useGps();
   const { hazards } = useHazards();
+  const { settings, updateSettings } = useSettings();
   /** Basemap could not load (offline, no WebGL): fall back to the bare trace. */
   const [basemapFailed, setBasemapFailed] = useState(false);
 
@@ -93,6 +95,8 @@ export default function MapView() {
               location={location}
               hazards={hazards}
               onUnavailable={() => setBasemapFailed(true)}
+              showRadar={settings.rainRadar}
+              onToggleRadar={() => updateSettings({ rainRadar: !settings.rainRadar })}
             />
           </Suspense>
         ) : activeTrip ? (

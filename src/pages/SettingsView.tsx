@@ -5,7 +5,7 @@ import { clearAllTrips } from '../services/storage';
 import { Unit, Theme, GpsAccuracy } from '../types';
 import { unitLabel } from '../utils/geo';
 import { isWakeLockSupported } from '../hooks/useWakeLock';
-import { Trash2, Download, PlaySquare, TriangleAlert, Volume2, Sun } from 'lucide-react';
+import { Trash2, Download, PlaySquare, TriangleAlert, Volume2, Sun, Navigation, CloudSun } from 'lucide-react';
 
 export default function SettingsView() {
   const { settings, updateSettings } = useSettings();
@@ -212,6 +212,58 @@ export default function SettingsView() {
                 Limpar cache do mapa ({cachedCells} {cachedCells === 1 ? 'área' : 'áreas'})
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* Rua e clima */}
+        <section>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/55">Rua e clima</h3>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-col pr-2">
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <Navigation className="h-5 w-5 shrink-0 text-cyan-400" /> Nome da rua
+                </span>
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/55">
+                  Mostra a rua atual e nomeia as viagens do histórico
+                </span>
+              </div>
+              <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={settings.streetName}
+                  onChange={(e) => updateSettings({ streetName: e.target.checked })}
+                />
+                <div className="peer h-6 w-11 rounded-full border border-white/20 bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-400 peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+              <div className="flex min-w-0 flex-col pr-2">
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <CloudSun className="h-5 w-5 shrink-0 text-sky-300" /> Clima e aviso de chuva
+                </span>
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/55">
+                  Temperatura e alerta de chuva na próxima hora
+                </span>
+              </div>
+              <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={settings.weather}
+                  onChange={(e) => updateSettings({ weather: e.target.checked })}
+                />
+                <div className="peer h-6 w-11 rounded-full border border-white/20 bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-sky-400 peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+              </label>
+            </div>
+
+            <p className="mt-4 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-white/55">
+              O nome da rua é consultado no Nominatim (OpenStreetMap), que recebe
+              sua posição. O clima vem do Open-Meteo, que recebe só uma área
+              aproximada (~11 km). O radar de chuva do mapa vem do RainViewer.
+            </p>
           </div>
         </section>
 

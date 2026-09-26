@@ -23,6 +23,9 @@ import { useNow } from '../hooks/useNow';
 import { describeGpsState } from '../utils/gpsState';
 import { WakeLockStatus } from '../hooks/useWakeLock';
 import { hazardLabel } from '../utils/hazards';
+import { useStreetName } from '../hooks/useStreetName';
+import { useWeather } from '../hooks/useWeather';
+import { RainBanner, StreetBar } from './RoadInfo';
 
 const STATUS_DOT: Record<string, string> = {
   connected: 'bg-emerald-500',
@@ -154,10 +157,12 @@ export default function SpeedometerFullscreen({
     currentSpeedMs,
     toggleDrivingMode,
   } = useTrip();
-  const { status, errorMessage, lastFixAt, trackingSince } = useGps();
+  const { status, location, errorMessage, lastFixAt, trackingSince } = useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
   const clock = useClock();
+  const place = useStreetName(location, settings.streetName);
+  const weather = useWeather(location, settings.weather);
 
   // Only ticks while the GPS is unhappy; a good signal leaves the screen idle.
   const gpsUnhealthy =
@@ -263,6 +268,13 @@ export default function SpeedometerFullscreen({
         </div>
       </div>
 
+      {/* ---- Street, big enough to read at a glance ---- */}
+      {place && (place.street || place.area) && (
+        <div className="shrink-0 px-4 pb-1">
+          <StreetBar place={place} large />
+        </div>
+      )}
+
       {/* ---- GPS trouble, said out loud ---- */}
       {/* Without this the rider just sees a grey dot and a zero, which is
           indistinguishable from a broken app. */}
@@ -293,6 +305,8 @@ export default function SpeedometerFullscreen({
           </p>
         </div>
       )}
+
+      {weather && <RainBanner weather={weather} large />}
 
       {/* ---- Hazard warning ---- */}
       {hazardAhead && (
