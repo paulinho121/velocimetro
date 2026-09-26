@@ -22,15 +22,7 @@ import { useClock } from '../hooks/useClock';
 import { useNow } from '../hooks/useNow';
 import { describeGpsState } from '../utils/gpsState';
 import { WakeLockStatus } from '../hooks/useWakeLock';
-
-const HAZARD_LABEL: Record<string, string> = {
-  bump: 'Lombada',
-  hump: 'Lombada',
-  table: 'Lombada elevada',
-  cushion: 'Almofada',
-  rumble_strip: 'Sonorizador',
-  speed_camera: 'Radar',
-};
+import { hazardLabel } from '../utils/hazards';
 
 const STATUS_DOT: Record<string, string> = {
   connected: 'bg-emerald-500',
@@ -108,7 +100,7 @@ function HazardPanel({
             overLimit ? 'text-red-200' : isAlerting ? 'text-amber-200' : 'text-white/80',
           )}
         >
-          {HAZARD_LABEL[hazard.subtype] ?? 'Obstáculo'}
+          {hazardLabel(hazard.subtype)}
         </span>
         <span
           className={clsx(

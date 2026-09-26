@@ -27,6 +27,7 @@ import { useAnimatedSpeed } from '../hooks/useAnimatedSpeed';
 import { useClock } from '../hooks/useClock';
 import { useNow } from '../hooks/useNow';
 import { describeGpsState } from '../utils/gpsState';
+import { hazardLabel } from '../utils/hazards';
 
 const STATUS_TEXT: Record<string, string> = {
   waiting: 'Aguardando',
@@ -53,15 +54,6 @@ const STATUS_TEXT_COLOR: Record<string, string> = {
   unavailable: 'text-red-500',
   locating: 'text-cyan-400',
   waiting: 'text-slate-500',
-};
-
-const HAZARD_LABEL: Record<string, string> = {
-  bump: 'Lombada',
-  hump: 'Lombada',
-  table: 'Lombada elevada',
-  cushion: 'Almofada',
-  rumble_strip: 'Sonorizador',
-  speed_camera: 'Radar',
 };
 
 /** Compact readout used for the compass / altitude chips under the speed. */
@@ -108,7 +100,7 @@ function HazardBanner({
   const { hazard, distance, isAlerting } = ahead;
   const isCamera = hazard.type === 'camera';
   const Icon = isCamera ? Camera : TriangleAlert;
-  const label = HAZARD_LABEL[hazard.subtype] ?? 'Obstáculo';
+  const label = hazardLabel(hazard.subtype);
   // Only meaningful for km/h; the limit from OSM is always km/h.
   const overLimit =
     isCamera &&

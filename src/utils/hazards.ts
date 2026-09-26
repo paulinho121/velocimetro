@@ -85,3 +85,17 @@ export function selectNextHazard(
 
   return best;
 }
+
+const HAZARD_LABEL: Record<string, string> = {
+  bump: 'Lombada',
+  hump: 'Lombada',
+  table: 'Lombada elevada',
+  cushion: 'Almofada',
+  rumble_strip: 'Sonorizador',
+  speed_camera: 'Radar',
+};
+
+/** Rider-facing name for an OSM hazard subtype. */
+export function hazardLabel(subtype: string): string {
+  return HAZARD_LABEL[subtype] ?? 'Obstáculo';
+}
