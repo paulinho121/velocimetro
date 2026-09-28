@@ -1,3 +1,5 @@
+import type { Destination } from '../types';
+
 /**
  * Reading Nominatim reverse-geocoding answers and deciding when to ask again,
  * kept pure so it can be tested without a network.
@@ -69,4 +71,40 @@ export function shouldRefetchStreet(
 /** ~11 m cells: close enough to reuse an answer, far enough to be useful. */
 export function placeCacheKey(lat: number, lng: number): string {
   return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+}
+
+/** The fields of a Nominatim `search` result we use. */
+export interface NominatimSearchResult {
+  place_id: number;
+  lat: string;
+  lon: string;
+  name?: string;
+  display_name: string;
+  address?: NominatimAddress & { house_number?: string };
+}
+
+/**
+ * A search hit as a destination: the place's own name up top (or the street
+ * and number for a bare address) and where it is underneath.
+ */
+export function parseSearchResult(r: NominatimSearchResult): Destination {
+  const a = r.address ?? {};
+  const place = parsePlace(a);
+  const street = place.street
+    ? a.house_number
+      ? `${place.street}, ${a.house_number}`
+      : place.street
+    : null;
+
+  const name = r.name?.trim() || street || r.display_name.split(',')[0].trim();
+  const details = [name === street ? null : street, place.area, place.city].filter(
+    (p): p is string => Boolean(p) && p !== name,
+  );
+  return {
+    id: `osm:${r.place_id}`,
+    name,
+    detail: details.length > 0 ? details.join(' · ') : null,
+    lat: Number(r.lat),
+    lng: Number(r.lon),
+  };
 }

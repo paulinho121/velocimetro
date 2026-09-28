@@ -15,7 +15,19 @@ export interface Settings {
   streetName: boolean; // show the current street (Nominatim)
   weather: boolean; // show weather and warn about rain (Open-Meteo)
   rainRadar: boolean; // rain radar layer on the map (RainViewer)
+  voiceGuidance: boolean; // speak turn-by-turn directions while navigating
   isSetupComplete: boolean;
+}
+
+/** Where the rider asked to be guided to. */
+export interface Destination {
+  id: string;
+  /** Short name, e.g. "Iguatemi Bosque". Null until a picked point is named. */
+  name: string | null;
+  /** Address line under the name, e.g. "Av. Washington Soares, 85 · Edson Queiroz". */
+  detail: string | null;
+  lat: number;
+  lng: number;
 }
 
 export interface LocationPoint {

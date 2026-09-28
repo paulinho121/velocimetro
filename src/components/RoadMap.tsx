@@ -18,6 +18,7 @@ import { LocationPoint, RoadHazard } from '../types';
 import {
   EMPTY_COLLECTION,
   HazardProps,
+  LngLat,
   hazardsToGeoJSON,
   pathBounds,
   pathToGeoJSON,
@@ -40,6 +41,7 @@ const CYAN = '#22d3ee';
 const EMERALD = '#10b981';
 const AMBER = '#f59e0b';
 const RED = '#ef4444';
+const ROUTE_BLUE = '#3b82f6';
 
 interface RoadMapProps {
   path: LocationPoint[];
@@ -49,6 +51,11 @@ interface RoadMapProps {
   onUnavailable: () => void;
   showRadar: boolean;
   onToggleRadar: () => void;
+  /** Line being navigated, if any. */
+  route: LngLat[] | null;
+  destination: { lat: number; lng: number } | null;
+  /** Tapping the map offers to navigate to the tapped point. */
+  onPickDestination: (lat: number, lng: number) => void;
 }
 
 type RadarState = { status: 'off' } | { status: 'loading' } | { status: 'error' } | { status: 'on'; time: number };
@@ -56,11 +63,29 @@ type RadarState = { status: 'off' } | { status: 'loading' } | { status: 'error' 
 const RADAR_ATTRIBUTION = '<a href="https://www.rainviewer.com/" target="_blank">RainViewer</a>';
 
 function addLayers(map: MapLibreMap) {
+  map.addSource('route', { type: 'geojson', data: EMPTY_COLLECTION });
+  map.addSource('destination', { type: 'geojson', data: EMPTY_COLLECTION });
   map.addSource('trip', { type: 'geojson', data: EMPTY_COLLECTION });
   map.addSource('start', { type: 'geojson', data: EMPTY_COLLECTION });
   map.addSource('hazards', { type: 'geojson', data: EMPTY_COLLECTION });
   map.addSource('me', { type: 'geojson', data: EMPTY_COLLECTION });
 
+  // The route to follow sits under the ride, so the part already ridden
+  // shows as cyan over blue.
+  map.addLayer({
+    id: 'route-casing',
+    type: 'line',
+    source: 'route',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#0B1F4D', 'line-width': 11 },
+  });
+  map.addLayer({
+    id: 'route-line',
+    type: 'line',
+    source: 'route',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ROUTE_BLUE, 'line-width': 7 },
+  });
   map.addLayer({
     id: 'trip-casing',
     type: 'line',
@@ -120,6 +145,17 @@ function addLayers(map: MapLibreMap) {
     paint: { 'text-color': '#fff', 'text-halo-color': RED, 'text-halo-width': 2 },
   });
   map.addLayer({
+    id: 'destination',
+    type: 'circle',
+    source: 'destination',
+    paint: {
+      'circle-radius': 9,
+      'circle-color': RED,
+      'circle-stroke-color': '#fff',
+      'circle-stroke-width': 3,
+    },
+  });
+  map.addLayer({
     id: 'me-halo',
     type: 'circle',
     source: 'me',
@@ -149,6 +185,9 @@ export default function RoadMap({
   onUnavailable,
   showRadar,
   onToggleRadar,
+  route,
+  destination,
+  onPickDestination,
 }: RoadMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -163,6 +202,8 @@ export default function RoadMap({
   // Latest callback without re-creating the map when the parent re-renders.
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
+  const onPickRef = useRef(onPickDestination);
+  onPickRef.current = onPickDestination;
 
   // ---- Create the map once ---------------------------------------------------
   useEffect(() => {
@@ -221,6 +262,30 @@ export default function RoadMap({
         .setDOMContent(el)
         .addTo(map);
     });
+    // Anywhere else: offer to go there. A popup, not an instant reroute, so a
+    // stray tap while panning never throws away the current route.
+    let pickPopup: Popup | null = null;
+    map.on('click', (e) => {
+      const onHazard = map.getLayer('hazards-hit')
+        ? map.queryRenderedFeatures(e.point, { layers: ['hazards-hit'] }).length > 0
+        : false;
+      if (onHazard) return;
+      pickPopup?.remove();
+      const { lat, lng } = e.lngLat;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'rounded-lg bg-cyan-500 px-3 py-2 text-sm font-black text-black';
+      button.textContent = 'Ir para cá';
+      const popup = new Popup({ closeButton: false, offset: 8 })
+        .setLngLat(e.lngLat)
+        .setDOMContent(button)
+        .addTo(map);
+      button.addEventListener('click', () => {
+        popup.remove();
+        onPickRef.current(lat, lng);
+      });
+      pickPopup = popup;
+    });
     map.on('mouseenter', 'hazards-hit', () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', 'hazards-hit', () => (map.getCanvas().style.cursor = ''));
 
@@ -270,7 +335,7 @@ export default function RoadMap({
           // Under the ride, so rain never hides the route or the hazards.
           map.addLayer(
             { id: 'radar', type: 'raster', source: 'radar', paint: { 'raster-opacity': 0.6 } },
-            'trip-casing',
+            'route-casing',
           );
         }
         setRadar({ status: 'on', time: frame.time });
@@ -307,6 +372,21 @@ export default function RoadMap({
     if (!ready || !map) return;
     setData(map, 'hazards', hazardsToGeoJSON(hazards));
   }, [ready, hazards]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    setData(
+      map,
+      'route',
+      route && route.length >= 2 ? { type: 'LineString', coordinates: route } : EMPTY_COLLECTION,
+    );
+    setData(
+      map,
+      'destination',
+      destination ? { type: 'Point', coordinates: toLngLat(destination) } : EMPTY_COLLECTION,
+    );
+  }, [ready, route, destination]);
 
   useEffect(() => {
     const map = mapRef.current;

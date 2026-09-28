@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  parseSearchResult,
   STREET_REFETCH_METRES,
   STREET_REFETCH_MS,
   parsePlace,
@@ -66,5 +67,43 @@ describe('placeCacheKey', () => {
   it('groups positions a few metres apart', () => {
     expect(placeCacheKey(-3.731941, -38.526712)).toBe(placeCacheKey(-3.731949, -38.526704));
     expect(placeCacheKey(-3.7319, -38.5267)).not.toBe(placeCacheKey(-3.7329, -38.5267));
+  });
+});
+
+describe('parseSearchResult', () => {
+  it('shows a named place with its address underneath', () => {
+    const dest = parseSearchResult({
+      place_id: 1,
+      lat: '-3.755',
+      lon: '-38.488',
+      name: 'Iguatemi Bosque',
+      display_name: 'Iguatemi Bosque, 85, Avenida Washington Soares, Fortaleza',
+      address: {
+        road: 'Avenida Washington Soares',
+        house_number: '85',
+        suburb: 'Edson Queiroz',
+        municipality: 'Fortaleza',
+      },
+    });
+    expect(dest).toEqual({
+      id: 'osm:1',
+      name: 'Iguatemi Bosque',
+      detail: 'Avenida Washington Soares, 85 · Edson Queiroz · Fortaleza',
+      lat: -3.755,
+      lng: -38.488,
+    });
+  });
+
+  it('names a bare address by its street and number', () => {
+    const dest = parseSearchResult({
+      place_id: 2,
+      lat: '0',
+      lon: '0',
+      name: '',
+      display_name: '120, Rua Solon Pinheiro, Centro, Fortaleza',
+      address: { road: 'Rua Solon Pinheiro', house_number: '120', suburb: 'Centro', city: 'Fortaleza' },
+    });
+    expect(dest.name).toBe('Rua Solon Pinheiro, 120');
+    expect(dest.detail).toBe('Centro · Fortaleza');
   });
 });
