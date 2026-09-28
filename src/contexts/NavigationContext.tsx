@@ -39,11 +39,20 @@ import { placeSummary } from '../utils/place';
 import { speak, stopSpeaking } from '../utils/speech';
 
 /**
- * idle: nowhere to go. routing: working out the first route. navigating:
- * guiding. rerouting: the rider left the route, a new one is on its way.
- * arrived: there. error: no route could be had (offline, unreachable place).
+ * idle: nowhere to go. routing: working out the first route. preview: route
+ * shown with its distance and time, waiting for the rider to start.
+ * navigating: guiding. rerouting: the rider left the route, a new one is on
+ * its way. arrived: there. error: no route could be had (offline, unreachable
+ * place).
  */
-export type NavStatus = 'idle' | 'routing' | 'navigating' | 'rerouting' | 'arrived' | 'error';
+export type NavStatus =
+  | 'idle'
+  | 'routing'
+  | 'preview'
+  | 'navigating'
+  | 'rerouting'
+  | 'arrived'
+  | 'error';
 
 /** A saved destination older than this is not resumed on startup. */
 const RESUME_WITHIN_MS = 6 * 60 * 60 * 1000;
@@ -63,7 +72,12 @@ interface NavigationContextValue {
   /** Seconds left, by the router's estimate. */
   remainingSec: number | null;
   recents: Destination[];
-  navigateTo: (dest: Destination) => void;
+  /** True once the rider pressed Iniciar; false while only previewing. */
+  guiding: boolean;
+  /** Shows the route to `dest` without starting guidance. */
+  chooseDestination: (dest: Destination) => void;
+  /** Starts turn-by-turn guidance on the previewed route. */
+  start: () => void;
   cancel: () => void;
   retry: () => void;
   removeRecent: (id: string) => void;
@@ -86,7 +100,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState<string | null>(null);
   const [position, setPosition] = useState<RoutePosition | null>(null);
   const [recents, setRecents] = useState<Destination[]>([]);
-  /** Bumped whenever a (new) route is wanted; 0 means none is. */
+  const [guiding, setGuiding] = useState(false);
+  /** Bumped whenever a (new) route is wanted; 0 means none has been yet. */
   const [routeRequest, setRouteRequest] = useState(0);
   /** The request a route was delivered for, so a GPS blip does not refetch it. */
   const servedRequestRef = useRef(0);
@@ -105,6 +120,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   modeRef.current = mode;
   const voiceRef = useRef(settings.voiceGuidance);
   voiceRef.current = settings.voiceGuidance;
+  const guidingRef = useRef(guiding);
+  guidingRef.current = guiding;
 
   /** Last segment matched while on the route (see locateOnRoute). */
   const segmentRef = useRef(0);
@@ -135,6 +152,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         }
         // The rider may already have picked somewhere new.
         if (destinationRef.current) return;
+        // It was being followed when the page went away: carry on guiding.
+        setGuiding(true);
         setDestination(saved.destination);
         setStatus('routing');
         setRouteRequest((n) => n + 1);
@@ -166,8 +185,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         setRoute(found);
         setPosition(null);
         setError(null);
-        setStatus('navigating');
-        if (!isRerouteRef.current) say(routeSummaryPhrase(found));
+        setStatus(guidingRef.current ? 'navigating' : 'preview');
+        if (guidingRef.current && !isRerouteRef.current) say(routeSummaryPhrase(found));
         isRerouteRef.current = false;
       })
       .catch((err) => {
@@ -256,26 +275,19 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     addRecentDestination(dest).then(setRecents).catch(() => {});
   }, []);
 
-  const navigateTo = useCallback(
+  const chooseDestination = useCallback(
     (dest: Destination) => {
       isRerouteRef.current = false;
+      setGuiding(false);
       setDestination(dest);
       setRoute(null);
       setPosition(null);
       setError(null);
       setStatus('routing');
       setRouteRequest((n) => n + 1);
-      // Also what lets iOS speak later: it must first speak from a tap.
-      say('Calculando rota.', true);
 
-      if (!isActive) startTrip(modeRef.current);
-
-      if (dest.name) {
-        rememberDestination(dest);
-        return;
-      }
+      if (dest.name) return;
       // A point picked on the map: name it after the street it is on.
-      saveActiveDestination(dest).catch(() => {});
       import('../services/nominatim')
         .then(({ reverseGeocode }) => reverseGeocode(dest.lat, dest.lng))
         .then((place) => ({
@@ -287,20 +299,39 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         .then((named) => {
           if (destinationRef.current?.id !== dest.id) return;
           setDestination(named);
-          rememberDestination(named);
+          if (guidingRef.current) rememberDestination(named);
         });
     },
-    [isActive, startTrip, say, rememberDestination],
+    [rememberDestination],
   );
+
+  const start = useCallback(() => {
+    const dest = destinationRef.current;
+    if (!route || !dest) return;
+    segmentRef.current = 0;
+    offRouteFixesRef.current = 0;
+    announcedRef.current = new Set();
+    // The route was worked out when the destination was chosen; if the rider
+    // has moved since, the first off-route fixes fetch a fresh one.
+    lastRouteAtRef.current = 0;
+    setGuiding(true);
+    setStatus('navigating');
+    // Spoken from the tap, which is also what lets iOS speak later on.
+    say(routeSummaryPhrase(route), true);
+    rememberDestination(dest);
+    if (!isActive) startTrip(modeRef.current);
+  }, [route, isActive, startTrip, say, rememberDestination]);
 
   const cancel = useCallback(() => {
     stopSpeaking();
+    setGuiding(false);
     setDestination(null);
     setRoute(null);
     setPosition(null);
     setError(null);
     setStatus('idle');
-    setRouteRequest(0);
+    // The request counter is left alone: restarting it would reuse numbers
+    // already marked as served, and the next route would never be fetched.
     clearActiveDestination().catch(() => {});
   }, []);
 
@@ -335,7 +366,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         remaining,
         remainingSec,
         recents,
-        navigateTo,
+        guiding,
+        chooseDestination,
+        start,
         cancel,
         retry,
         removeRecent,

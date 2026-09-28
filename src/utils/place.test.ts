@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  parseSearchResult,
+  PhotonFeature,
+  parsePhotonFeature,
   STREET_REFETCH_METRES,
   STREET_REFETCH_MS,
   parsePlace,
@@ -70,40 +71,37 @@ describe('placeCacheKey', () => {
   });
 });
 
-describe('parseSearchResult', () => {
+describe('parsePhotonFeature', () => {
+  const feature = (properties: Partial<PhotonFeature['properties']>): PhotonFeature => ({
+    properties: { osm_type: 'N', osm_id: 1, ...properties },
+    geometry: { coordinates: [-38.53, -3.73] },
+  });
+
   it('shows a named place with its address underneath', () => {
-    const dest = parseSearchResult({
-      place_id: 1,
-      lat: '-3.755',
-      lon: '-38.488',
-      name: 'Iguatemi Bosque',
-      display_name: 'Iguatemi Bosque, 85, Avenida Washington Soares, Fortaleza',
-      address: {
-        road: 'Avenida Washington Soares',
-        house_number: '85',
-        suburb: 'Edson Queiroz',
-        municipality: 'Fortaleza',
-      },
-    });
-    expect(dest).toEqual({
-      id: 'osm:1',
+    expect(
+      parsePhotonFeature(
+        feature({
+          name: 'Iguatemi Bosque',
+          street: 'Avenida Washington Soares',
+          housenumber: '85',
+          district: 'Edson Queiroz',
+          city: 'Fortaleza',
+        }),
+      ),
+    ).toEqual({
+      id: 'osm:N1',
       name: 'Iguatemi Bosque',
       detail: 'Avenida Washington Soares, 85 · Edson Queiroz · Fortaleza',
-      lat: -3.755,
-      lng: -38.488,
+      lat: -3.73,
+      lng: -38.53,
     });
   });
 
   it('names a bare address by its street and number', () => {
-    const dest = parseSearchResult({
-      place_id: 2,
-      lat: '0',
-      lon: '0',
-      name: '',
-      display_name: '120, Rua Solon Pinheiro, Centro, Fortaleza',
-      address: { road: 'Rua Solon Pinheiro', house_number: '120', suburb: 'Centro', city: 'Fortaleza' },
-    });
-    expect(dest.name).toBe('Rua Solon Pinheiro, 120');
+    const dest = parsePhotonFeature(
+      feature({ street: 'Rua Senador Pompeu', housenumber: '1547', district: 'Centro', city: 'Fortaleza' }),
+    );
+    expect(dest.name).toBe('Rua Senador Pompeu, 1547');
     expect(dest.detail).toBe('Centro · Fortaleza');
   });
 });

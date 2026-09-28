@@ -73,38 +73,40 @@ export function placeCacheKey(lat: number, lng: number): string {
   return `${lat.toFixed(4)},${lng.toFixed(4)}`;
 }
 
-/** The fields of a Nominatim `search` result we use. */
-export interface NominatimSearchResult {
-  place_id: number;
-  lat: string;
-  lon: string;
+/** The properties of a Photon search hit we use. All but the id are optional. */
+export interface PhotonProperties {
+  osm_type: string;
+  osm_id: number;
   name?: string;
-  display_name: string;
-  address?: NominatimAddress & { house_number?: string };
+  housenumber?: string;
+  street?: string;
+  district?: string;
+  locality?: string;
+  city?: string;
+  state?: string;
+}
+
+export interface PhotonFeature {
+  properties: PhotonProperties;
+  geometry: { coordinates: [number, number] };
 }
 
 /**
  * A search hit as a destination: the place's own name up top (or the street
  * and number for a bare address) and where it is underneath.
  */
-export function parseSearchResult(r: NominatimSearchResult): Destination {
-  const a = r.address ?? {};
-  const place = parsePlace(a);
-  const street = place.street
-    ? a.house_number
-      ? `${place.street}, ${a.house_number}`
-      : place.street
-    : null;
-
-  const name = r.name?.trim() || street || r.display_name.split(',')[0].trim();
-  const details = [name === street ? null : street, place.area, place.city].filter(
-    (p): p is string => Boolean(p) && p !== name,
+export function parsePhotonFeature(f: PhotonFeature): Destination {
+  const p = f.properties;
+  const street = p.street ? (p.housenumber ? `${p.street}, ${p.housenumber}` : p.street) : null;
+  const name = p.name?.trim() || street || p.city || p.state || 'Local sem nome';
+  const details = [street, p.district ?? p.locality, p.city].filter(
+    (d, i, all): d is string => Boolean(d) && d !== name && all.indexOf(d) === i,
   );
   return {
-    id: `osm:${r.place_id}`,
+    id: `osm:${p.osm_type}${p.osm_id}`,
     name,
     detail: details.length > 0 ? details.join(' · ') : null,
-    lat: Number(r.lat),
-    lng: Number(r.lon),
+    lat: f.geometry.coordinates[1],
+    lng: f.geometry.coordinates[0],
   };
 }

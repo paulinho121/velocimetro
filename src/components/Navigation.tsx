@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
   ArrowUp,
@@ -10,6 +10,7 @@ import {
   Flag,
   Loader2,
   MapPin,
+  Navigation as NavigationIcon,
   RotateCcw,
   Search,
   Split,
@@ -226,6 +227,73 @@ export function RouteSummary() {
   );
 }
 
+/**
+ * The chosen destination before setting off: the whole route on the map,
+ * how far and how long, and the button that starts the guidance.
+ */
+export function RoutePreview() {
+  const nav = useNavigation();
+  const { location } = useGps();
+  const { destination, status, route } = nav;
+  if (!destination) return null;
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#0B1424] p-3">
+      <div className="flex items-start gap-3">
+        <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-red-400" aria-hidden="true" />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate font-bold">{destination.name ?? 'Ponto no mapa'}</p>
+          {destination.detail && (
+            <p className="truncate text-xs text-white/55">{destination.detail}</p>
+          )}
+        </div>
+        <CancelButton />
+      </div>
+
+      {status === 'routing' && (
+        <p role="status" className="mt-3 flex items-center gap-2 text-sm text-cyan-100">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          {location ? 'Calculando rota…' : 'Aguardando o GPS para calcular a rota…'}
+        </p>
+      )}
+
+      {status === 'error' && (
+        <div role="alert" className="mt-3 flex items-center gap-3">
+          <p className="flex-1 text-sm font-bold text-red-200">{nav.error}</p>
+          <button
+            type="button"
+            onClick={nav.retry}
+            className="shrink-0 rounded-xl bg-white/15 px-3 py-2 text-sm font-bold text-white active:bg-white/25"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      )}
+
+      {status === 'preview' && route && (
+        <div className="mt-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="text-3xl font-black tabular-nums text-cyan-300">
+              {formatDuration(route.duration)}
+            </p>
+            <p className="text-sm tabular-nums text-white/65">
+              {shortDistance(route.length)} · chegada {arrivalClock(route.duration)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={nav.start}
+            className="flex shrink-0 items-center gap-2 rounded-2xl bg-cyan-400 px-6 py-3 text-base font-black text-black shadow-[0_0_20px_rgba(0,229,255,0.35)] active:bg-cyan-300"
+          >
+            <NavigationIcon className="h-5 w-5" aria-hidden="true" />
+            Iniciar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DestinationRow({
   dest,
   icon,
@@ -273,79 +341,128 @@ function DestinationRow({
   );
 }
 
-type SearchState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'done'; results: Destination[] }
-  | { status: 'error' };
+/** Pause in typing before suggestions are fetched. */
+const SUGGEST_DELAY_MS = 350;
+const MIN_QUERY = 3;
 
-/**
- * Search runs on submit, not while typing: the public geocoder's usage
- * policy forbids autocomplete.
- */
+/** Address search with suggestions while typing, plus recent destinations. */
 export function DestinationSearch() {
-  const { navigateTo, recents, removeRecent } = useNavigation();
+  const { chooseDestination, recents, removeRecent } = useNavigation();
   const { location } = useGps();
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState<SearchState>({ status: 'idle' });
+  const [results, setResults] = useState<Destination[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const inFlight = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const runSearch = useCallback(async (q: string) => {
+    inFlight.current?.abort();
+    if (q.length < MIN_QUERY) {
+      setResults(null);
+      setLoading(false);
+      setFailed(false);
+      return;
+    }
+    const controller = new AbortController();
+    inFlight.current = controller;
+    // Earlier results stay up while the next ones load, so the list does not
+    // flicker empty on every keystroke.
+    setLoading(true);
+    try {
+      const { searchPlaces } = await import('../services/photon');
+      const found = await searchPlaces(q, locationRef.current, controller.signal);
+      if (controller.signal.aborted) return;
+      setResults(found);
+      setFailed(false);
+    } catch {
+      if (controller.signal.aborted) return;
+      setFailed(true);
+    }
+    setLoading(false);
+  }, []);
+
+  // Suggest while typing, once the rider pauses.
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => runSearch(query.trim()), SUGGEST_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [query, open, runSearch]);
+
+  useEffect(() => () => inFlight.current?.abort(), []);
 
   const close = () => {
     inFlight.current?.abort();
     setOpen(false);
-    setSearch({ status: 'idle' });
+    setLoading(false);
     inputRef.current?.blur();
   };
 
   const pick = (dest: Destination) => {
     close();
-    setQuery('');
-    navigateTo(dest);
+    setQuery(dest.name ?? '');
+    setResults(null);
+    chooseDestination(dest);
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const q = query.trim();
-    if (q.length < 3) return;
-    inFlight.current?.abort();
-    const controller = new AbortController();
-    inFlight.current = controller;
-    setSearch({ status: 'loading' });
-    setOpen(true);
-    try {
-      const { searchPlaces } = await import('../services/nominatim');
-      const results = await searchPlaces(q, location, controller.signal);
-      if (!controller.signal.aborted) setSearch({ status: 'done', results });
-    } catch {
-      if (!controller.signal.aborted) setSearch({ status: 'error' });
+    // Enter on a list already showing takes the best match.
+    if (results && results.length > 0 && !loading) {
+      pick(results[0]);
+      return;
     }
+    runSearch(query.trim());
   };
 
-  const showRecents = search.status === 'idle' && recents.length > 0;
+  const typed = query.trim().length >= MIN_QUERY;
+  const showRecents = !typed && recents.length > 0;
+  const showPanel = open && (typed || showRecents);
 
   return (
     <div className="relative">
       <form onSubmit={submit} role="search" className="flex gap-2">
         <label className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-3 focus-within:border-cyan-400/60">
-          <Search className="h-4 w-4 shrink-0 text-white/50" aria-hidden="true" />
+          {loading ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-cyan-300" aria-hidden="true" />
+          ) : (
+            <Search className="h-4 w-4 shrink-0 text-white/50" aria-hidden="true" />
+          )}
           <input
             ref={inputRef}
-            type="search"
+            type="text"
             enterKeyHint="search"
+            autoComplete="off"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              if (search.status !== 'idle') setSearch({ status: 'idle' });
+              setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            placeholder="Para onde? Endereço ou lugar"
+            placeholder="Para onde? Rua, número ou lugar"
             aria-label="Buscar destino"
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-white placeholder:text-white/40 focus:outline-none"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setResults(null);
+                inputRef.current?.focus();
+              }}
+              aria-label="Limpar busca"
+              className="flex h-8 w-8 shrink-0 items-center justify-center text-white/50 active:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </label>
-        {open ? (
+        {open && (
           <button
             type="button"
             onClick={close}
@@ -353,29 +470,29 @@ export function DestinationSearch() {
           >
             Fechar
           </button>
-        ) : null}
+        )}
       </form>
 
-      {open && (search.status !== 'idle' || showRecents) && (
+      {showPanel && (
         <div className="absolute inset-x-0 top-full z-20 mt-2 max-h-[60vh] overflow-y-auto rounded-2xl border border-white/15 bg-[#0B1424] shadow-2xl">
-          {search.status === 'loading' && (
-            <p className="flex items-center gap-2 px-4 py-3 text-sm text-white/60">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Buscando…
-            </p>
-          )}
-          {search.status === 'error' && (
+          {typed && failed && (
             <p className="px-4 py-3 text-sm text-red-300">
               Não deu para buscar agora. Confira a internet e tente de novo.
             </p>
           )}
-          {search.status === 'done' && search.results.length === 0 && (
+          {typed && !failed && results === null && (
+            <p className="flex items-center gap-2 px-4 py-3 text-sm text-white/60">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Buscando…
+            </p>
+          )}
+          {typed && !failed && results?.length === 0 && !loading && (
             <p className="px-4 py-3 text-sm text-white/60">
               Nada encontrado. Tente incluir o bairro ou a cidade.
             </p>
           )}
-          {search.status === 'done' && search.results.length > 0 && (
+          {typed && results && results.length > 0 && (
             <ul className="divide-y divide-white/5">
-              {search.results.map((r) => (
+              {results.map((r) => (
                 <DestinationRow key={r.id} dest={r} icon="result" onPick={() => pick(r)} />
               ))}
             </ul>
@@ -403,3 +520,4 @@ export function DestinationSearch() {
     </div>
   );
 }
+

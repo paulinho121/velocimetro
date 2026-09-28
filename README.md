@@ -7,8 +7,9 @@ no navegador: sem servidor, sem banco, sem chave de API.
 - Modo velocímetro em tela cheia, pensado para suporte de carro
 - Alerta de lombadas e radares à frente, com o limite do radar
 - Mapa com ruas, trajeto em tempo real, lombadas, radares e radar de chuva
-- Navegação até um destino: busca de endereço ou toque no mapa, rota desenhada,
-  instruções curva a curva por voz, recálculo ao sair da rota e aviso de chegada
+- Navegação até um destino: busca de endereço com sugestões ou toque no mapa,
+  prévia da rota com distância, tempo e chegada, botão Iniciar, instruções curva a
+  curva por voz, recálculo ao sair da rota e aviso de chegada
 - Nome da rua atual e viagens nomeadas no histórico ("Aldeota → Centro")
 - Clima e aviso de chuva para a próxima hora
 - Instalável como PWA
@@ -83,7 +84,7 @@ podem ser desligadas nas Configurações):
 | --- | --- | --- |
 | Nome da rua e das viagens | [Nominatim](https://nominatim.org/) (OpenStreetMap) | A posição, no máximo a cada 15 s e 150 m; respostas ficam em cache |
 | Clima e aviso de chuva | [Open-Meteo](https://open-meteo.com/) (uso não comercial) | Só uma área aproximada (~11 km), a cada 15 min |
-| Busca de destino | [Nominatim](https://nominatim.org/) (OpenStreetMap) | O texto buscado e uma área de ~30 km em volta, só quando você busca |
+| Busca de destino | [Photon](https://photon.komoot.io/) (komoot, dados do OpenStreetMap) | O texto digitado e uma posição aproximada (~100 m), enquanto você busca |
 | Rota até o destino | [OSRM da FOSSGIS](https://routing.openstreetmap.de/) (OpenStreetMap) | A posição e o destino, ao iniciar e ao sair da rota |
 | Radar de chuva no mapa | [RainViewer](https://www.rainviewer.com/api.html) | Nada além dos quadrados do mapa visíveis |
 

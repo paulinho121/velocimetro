@@ -65,7 +65,7 @@ export function hazardsToGeoJSON(
 }
 
 /** South-west / north-east corners enclosing the path, or null if empty. */
-export function pathBounds(path: LocationPoint[]): Bounds | null {
+export function pathBounds(path: { lat: number; lng: number }[]): Bounds | null {
   if (path.length === 0) return null;
   let minLng = path[0].lng;
   let maxLng = minLng;
@@ -81,4 +81,10 @@ export function pathBounds(path: LocationPoint[]): Bounds | null {
     [minLng, minLat],
     [maxLng, maxLat],
   ];
+}
+
+/** Corners enclosing a line given as [lng, lat] pairs, or null if empty. */
+export function lineBounds(coords: LngLat[]): Bounds | null {
+  if (coords.length === 0) return null;
+  return pathBounds(coords.map(([lng, lat]) => ({ lat, lng })));
 }

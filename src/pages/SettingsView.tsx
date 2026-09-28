@@ -240,7 +240,7 @@ export default function SettingsView() {
             </div>
 
             <p className="mt-4 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-white/55">
-              A busca de destinos usa o Nominatim e as rotas vêm do OSRM do
+              A busca de destinos usa o Photon (komoot) e as rotas vêm do OSRM do
               OpenStreetMap (FOSSGIS). Os dois recebem sua posição e o destino.
               A rota segue o modo da viagem: carro e moto usam as ruas de carro.
             </p>

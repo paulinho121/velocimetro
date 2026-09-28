@@ -162,7 +162,7 @@ export default function SpeedometerFullscreen({
   const { status, location, errorMessage, lastFixAt, trackingSince } = useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
-  const { destination } = useNavigation();
+  const { guiding } = useNavigation();
   const clock = useClock();
   const place = useStreetName(location, settings.streetName);
   const weather = useWeather(location, settings.weather);
@@ -310,7 +310,7 @@ export default function SpeedometerFullscreen({
       )}
 
       {/* ---- Next turn, when navigating ---- */}
-      {destination && (
+      {guiding && (
         <div className="shrink-0 px-3 pb-1">
           <ManeuverBanner large />
         </div>

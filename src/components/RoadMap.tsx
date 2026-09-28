@@ -20,6 +20,7 @@ import {
   HazardProps,
   LngLat,
   hazardsToGeoJSON,
+  lineBounds,
   pathBounds,
   pathToGeoJSON,
   toLngLat,
@@ -53,6 +54,8 @@ interface RoadMapProps {
   onToggleRadar: () => void;
   /** Line being navigated, if any. */
   route: LngLat[] | null;
+  /** Frame the whole route instead of following the rider (before setting off). */
+  overview: boolean;
   destination: { lat: number; lng: number } | null;
   /** Tapping the map offers to navigate to the tapped point. */
   onPickDestination: (lat: number, lng: number) => void;
@@ -188,6 +191,7 @@ export default function RoadMap({
   route,
   destination,
   onPickDestination,
+  overview,
 }: RoadMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -399,9 +403,30 @@ export default function RoadMap({
   }, [ready, location]);
 
   // ---- Camera ------------------------------------------------------------------
+  // Before setting off the camera frames the whole trip instead of the rider;
+  // `follow` then means "keep it framed", and the button re-frames it.
+  const previewing = overview && route !== null;
+
+  useEffect(() => {
+    // Setting off (or cancelling): back to riding along with the rider, at
+    // street level rather than the zoom that framed the whole route.
+    if (overview) return;
+    centeredRef.current = false;
+    setFollow(true);
+  }, [overview]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !route || !overview || !follow) return;
+    const points = locationRef.current ? [...route, toLngLat(locationRef.current)] : route;
+    const bounds = lineBounds(points);
+    if (bounds) map.fitBounds(bounds, { padding: 56, maxZoom: FOLLOW_ZOOM, duration: 800 });
+  }, [ready, overview, route, follow]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !follow) return;
+    if (previewing) return;
 
     if (location) {
       // Jump in to street level the first time; afterwards only glide the
@@ -419,7 +444,7 @@ export default function RoadMap({
     // No live fix (e.g. GPS lost) but a ride on record: show the whole ride.
     const bounds = pathBounds(path);
     if (bounds) map.fitBounds(bounds, { padding: 48, maxZoom: FOLLOW_ZOOM, duration: 0 });
-  }, [ready, follow, location, path]);
+  }, [ready, follow, location, path, previewing]);
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-3xl">
@@ -452,7 +477,7 @@ export default function RoadMap({
           className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full border border-white/15 bg-[#050A15]/85 px-4 py-2.5 text-sm font-bold text-cyan-300 shadow-lg backdrop-blur"
         >
           <LocateFixed className="h-4 w-4" />
-          Centralizar
+          {previewing ? 'Ver rota' : 'Centralizar'}
         </button>
       )}
     </div>

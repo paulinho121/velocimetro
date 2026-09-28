@@ -4,7 +4,12 @@ import { useGps } from '../contexts/GpsContext';
 import { useHazards } from '../contexts/HazardContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { DestinationSearch, ManeuverBanner, RouteSummary } from '../components/Navigation';
+import {
+  DestinationSearch,
+  ManeuverBanner,
+  RoutePreview,
+  RouteSummary,
+} from '../components/Navigation';
 import { LocationPoint } from '../types';
 import { Map as MapIcon, WifiOff } from 'lucide-react';
 
@@ -86,7 +91,7 @@ export default function MapView() {
       <h2 className="sr-only">Mapa</h2>
       {/* Above the map so the search results can drop down over it. */}
       <div className="relative z-10 mb-3 shrink-0">
-        {nav.destination ? <ManeuverBanner /> : <DestinationSearch />}
+        {nav.guiding ? <ManeuverBanner /> : <DestinationSearch />}
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl">
         {!basemapFailed ? (
@@ -106,8 +111,9 @@ export default function MapView() {
               onToggleRadar={() => updateSettings({ rainRadar: !settings.rainRadar })}
               route={nav.route?.coords ?? null}
               destination={nav.destination}
+              overview={!nav.guiding}
               onPickDestination={(lat, lng) =>
-                nav.navigateTo({ id: `pt:${lat.toFixed(5)},${lng.toFixed(5)}`, name: null, detail: null, lat, lng })
+                nav.chooseDestination({ id: `pt:${lat.toFixed(5)},${lng.toFixed(5)}`, name: null, detail: null, lat, lng })
               }
             />
           </Suspense>
@@ -127,9 +133,7 @@ export default function MapView() {
         )}
       </div>
       {nav.destination ? (
-        <div className="mt-3 shrink-0">
-          <RouteSummary />
-        </div>
+        <div className="mt-3 shrink-0">{nav.guiding ? <RouteSummary /> : <RoutePreview />}</div>
       ) : (
         <p className="mt-3 shrink-0 text-center text-[11px] font-bold uppercase tracking-widest text-white/55">
           {basemapFailed

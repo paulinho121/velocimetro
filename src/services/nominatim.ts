@@ -1,16 +1,8 @@
 import localforage from 'localforage';
-import { Destination } from '../types';
-import {
-  NominatimAddress,
-  NominatimSearchResult,
-  Place,
-  parsePlace,
-  parseSearchResult,
-  placeCacheKey,
-} from '../utils/place';
+import { NominatimAddress, Place, parsePlace, placeCacheKey } from '../utils/place';
 
 /**
- * Geocoding through OpenStreetMap's public Nominatim server.
+ * Reverse geocoding through OpenStreetMap's public Nominatim server.
  *
  * Its usage policy allows at most one request per second per application and
  * bans heavy users, so every call in the app goes through the one queue below,
@@ -73,38 +65,4 @@ export async function reverseGeocode(
   });
   PLACE_STORE.setItem(key, place).catch(() => {});
   return place;
-}
-
-/** How far around the rider search results are favoured (not limited), in degrees. */
-const SEARCH_BIAS_DEG = 0.3;
-
-/**
- * Places matching what the rider typed, nearest area first.
- *
- * Only ever called on submit: the usage policy forbids search-as-you-type
- * against the public server.
- */
-export async function searchPlaces(
-  query: string,
-  near: { lat: number; lng: number } | null,
-  signal?: AbortSignal,
-): Promise<Destination[]> {
-  const params = new URLSearchParams({
-    q: query,
-    format: 'jsonv2',
-    limit: '6',
-    addressdetails: '1',
-    'accept-language': 'pt-BR',
-  });
-  if (near) {
-    const d = SEARCH_BIAS_DEG;
-    // left, top, right, bottom. Not bounded: a far city still matches.
-    params.set('viewbox', [near.lng - d, near.lat + d, near.lng + d, near.lat - d].join(','));
-  }
-  return enqueue(async () => {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const res = await fetch(`${ENDPOINT}/search?${params}`, { signal });
-    if (!res.ok) throw new Error(`Nominatim ${res.status}`);
-    return ((await res.json()) as NominatimSearchResult[]).map(parseSearchResult);
-  });
 }
