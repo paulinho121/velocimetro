@@ -9,7 +9,7 @@ import { NominatimAddress, Place, parsePlace, placeCacheKey } from '../utils/pla
  * and answers are cached on the device by ~11 m cell.
  * https://operations.osmfoundation.org/policies/nominatim/
  */
-const ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
+const ENDPOINT = 'https://nominatim.openstreetmap.org';
 const MIN_GAP_MS = 1100;
 
 const PLACE_STORE = localforage.createInstance({ name: 'Velox', storeName: 'places' });
@@ -39,7 +39,7 @@ async function fetchPlace(lat: number, lng: number, signal?: AbortSignal): Promi
     addressdetails: '1',
     'accept-language': 'pt-BR',
   });
-  const res = await fetch(`${ENDPOINT}?${params}`, { signal });
+  const res = await fetch(`${ENDPOINT}/reverse?${params}`, { signal });
   if (!res.ok) throw new Error(`Nominatim ${res.status}`);
   const body = (await res.json()) as { address?: NominatimAddress };
   return parsePlace(body.address);

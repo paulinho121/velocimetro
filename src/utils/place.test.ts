@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  PhotonFeature,
+  parsePhotonFeature,
   STREET_REFETCH_METRES,
   STREET_REFETCH_MS,
   parsePlace,
@@ -66,5 +68,40 @@ describe('placeCacheKey', () => {
   it('groups positions a few metres apart', () => {
     expect(placeCacheKey(-3.731941, -38.526712)).toBe(placeCacheKey(-3.731949, -38.526704));
     expect(placeCacheKey(-3.7319, -38.5267)).not.toBe(placeCacheKey(-3.7329, -38.5267));
+  });
+});
+
+describe('parsePhotonFeature', () => {
+  const feature = (properties: Partial<PhotonFeature['properties']>): PhotonFeature => ({
+    properties: { osm_type: 'N', osm_id: 1, ...properties },
+    geometry: { coordinates: [-38.53, -3.73] },
+  });
+
+  it('shows a named place with its address underneath', () => {
+    expect(
+      parsePhotonFeature(
+        feature({
+          name: 'Iguatemi Bosque',
+          street: 'Avenida Washington Soares',
+          housenumber: '85',
+          district: 'Edson Queiroz',
+          city: 'Fortaleza',
+        }),
+      ),
+    ).toEqual({
+      id: 'osm:N1',
+      name: 'Iguatemi Bosque',
+      detail: 'Avenida Washington Soares, 85 · Edson Queiroz · Fortaleza',
+      lat: -3.73,
+      lng: -38.53,
+    });
+  });
+
+  it('names a bare address by its street and number', () => {
+    const dest = parsePhotonFeature(
+      feature({ street: 'Rua Senador Pompeu', housenumber: '1547', district: 'Centro', city: 'Fortaleza' }),
+    );
+    expect(dest.name).toBe('Rua Senador Pompeu, 1547');
+    expect(dest.detail).toBe('Centro · Fortaleza');
   });
 });

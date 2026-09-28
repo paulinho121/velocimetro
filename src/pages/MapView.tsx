@@ -3,6 +3,13 @@ import { useTrip } from '../contexts/TripContext';
 import { useGps } from '../contexts/GpsContext';
 import { useHazards } from '../contexts/HazardContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { useNavigation } from '../contexts/NavigationContext';
+import {
+  DestinationSearch,
+  ManeuverBanner,
+  RoutePreview,
+  RouteSummary,
+} from '../components/Navigation';
 import { LocationPoint } from '../types';
 import { Map as MapIcon, WifiOff } from 'lucide-react';
 
@@ -73,6 +80,7 @@ export default function MapView() {
   const { location } = useGps();
   const { hazards } = useHazards();
   const { settings, updateSettings } = useSettings();
+  const nav = useNavigation();
   /** Basemap could not load (offline, no WebGL): fall back to the bare trace. */
   const [basemapFailed, setBasemapFailed] = useState(false);
 
@@ -80,7 +88,11 @@ export default function MapView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#050A15] px-4 pt-4 pb-nav text-white">
-      <h2 className="mb-3 shrink-0 text-xl font-black tracking-wide">Mapa</h2>
+      <h2 className="sr-only">Mapa</h2>
+      {/* Above the map so the search results can drop down over it. */}
+      <div className="relative z-10 mb-3 shrink-0">
+        {nav.guiding ? <ManeuverBanner /> : <DestinationSearch />}
+      </div>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl">
         {!basemapFailed ? (
           <Suspense
@@ -97,6 +109,12 @@ export default function MapView() {
               onUnavailable={() => setBasemapFailed(true)}
               showRadar={settings.rainRadar}
               onToggleRadar={() => updateSettings({ rainRadar: !settings.rainRadar })}
+              route={nav.route?.coords ?? null}
+              destination={nav.destination}
+              overview={!nav.guiding}
+              onPickDestination={(lat, lng) =>
+                nav.chooseDestination({ id: `pt:${lat.toFixed(5)},${lng.toFixed(5)}`, name: null, detail: null, lat, lng })
+              }
             />
           </Suspense>
         ) : activeTrip ? (
@@ -114,11 +132,15 @@ export default function MapView() {
           </div>
         )}
       </div>
-      <p className="mt-3 shrink-0 text-center text-[11px] font-bold uppercase tracking-widest text-white/55">
-        {basemapFailed
-          ? 'Sem mapa de fundo: exibindo só o rastro do GPS.'
-          : 'Toque em uma lombada ou radar para ver detalhes.'}
-      </p>
+      {nav.destination ? (
+        <div className="mt-3 shrink-0">{nav.guiding ? <RouteSummary /> : <RoutePreview />}</div>
+      ) : (
+        <p className="mt-3 shrink-0 text-center text-[11px] font-bold uppercase tracking-widest text-white/55">
+          {basemapFailed
+            ? 'Sem mapa de fundo: exibindo só o rastro do GPS.'
+            : 'Toque no mapa para ir até um ponto, ou busque um destino.'}
+        </p>
+      )}
     </div>
   );
 }

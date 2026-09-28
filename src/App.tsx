@@ -13,6 +13,7 @@ import SetupScreen from './components/SetupScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import SpeedometerFullscreen from './components/SpeedometerFullscreen';
 import { HazardProvider } from './contexts/HazardContext';
+import { NavigationProvider } from './contexts/NavigationContext';
 import ResumeTripPrompt from './components/ResumeTripPrompt';
 import { useWakeLock } from './hooks/useWakeLock';
 
@@ -67,7 +68,9 @@ export default function App() {
         <GpsProvider>
           <TripProvider>
             <HazardProvider>
-              <AppContent />
+              <NavigationProvider>
+                <AppContent />
+              </NavigationProvider>
             </HazardProvider>
           </TripProvider>
         </GpsProvider>

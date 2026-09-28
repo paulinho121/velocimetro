@@ -26,6 +26,8 @@ import { hazardLabel } from '../utils/hazards';
 import { useStreetName } from '../hooks/useStreetName';
 import { useWeather } from '../hooks/useWeather';
 import { RainBanner, StreetBar } from './RoadInfo';
+import { useNavigation } from '../contexts/NavigationContext';
+import { ManeuverBanner } from './Navigation';
 
 const STATUS_DOT: Record<string, string> = {
   connected: 'bg-emerald-500',
@@ -160,6 +162,7 @@ export default function SpeedometerFullscreen({
   const { status, location, errorMessage, lastFixAt, trackingSince } = useGps();
   const { settings } = useSettings();
   const { next: hazardAhead } = useHazards();
+  const { guiding } = useNavigation();
   const clock = useClock();
   const place = useStreetName(location, settings.streetName);
   const weather = useWeather(location, settings.weather);
@@ -303,6 +306,13 @@ export default function SpeedometerFullscreen({
           >
             {notice.message}
           </p>
+        </div>
+      )}
+
+      {/* ---- Next turn, when navigating ---- */}
+      {guiding && (
+        <div className="shrink-0 px-3 pb-1">
+          <ManeuverBanner large />
         </div>
       )}
 

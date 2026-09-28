@@ -1,3 +1,5 @@
+import type { Destination } from '../types';
+
 /**
  * Reading Nominatim reverse-geocoding answers and deciding when to ask again,
  * kept pure so it can be tested without a network.
@@ -69,4 +71,42 @@ export function shouldRefetchStreet(
 /** ~11 m cells: close enough to reuse an answer, far enough to be useful. */
 export function placeCacheKey(lat: number, lng: number): string {
   return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+}
+
+/** The properties of a Photon search hit we use. All but the id are optional. */
+export interface PhotonProperties {
+  osm_type: string;
+  osm_id: number;
+  name?: string;
+  housenumber?: string;
+  street?: string;
+  district?: string;
+  locality?: string;
+  city?: string;
+  state?: string;
+}
+
+export interface PhotonFeature {
+  properties: PhotonProperties;
+  geometry: { coordinates: [number, number] };
+}
+
+/**
+ * A search hit as a destination: the place's own name up top (or the street
+ * and number for a bare address) and where it is underneath.
+ */
+export function parsePhotonFeature(f: PhotonFeature): Destination {
+  const p = f.properties;
+  const street = p.street ? (p.housenumber ? `${p.street}, ${p.housenumber}` : p.street) : null;
+  const name = p.name?.trim() || street || p.city || p.state || 'Local sem nome';
+  const details = [street, p.district ?? p.locality, p.city].filter(
+    (d, i, all): d is string => Boolean(d) && d !== name && all.indexOf(d) === i,
+  );
+  return {
+    id: `osm:${p.osm_type}${p.osm_id}`,
+    name,
+    detail: details.length > 0 ? details.join(' · ') : null,
+    lat: f.geometry.coordinates[1],
+    lng: f.geometry.coordinates[0],
+  };
 }

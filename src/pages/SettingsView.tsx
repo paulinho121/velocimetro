@@ -215,6 +215,38 @@ export default function SettingsView() {
           </div>
         </section>
 
+        {/* Navegação */}
+        <section>
+          <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/55">Navegação</h3>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-col pr-2">
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <Volume2 className="h-5 w-5 shrink-0 text-cyan-400" /> Instruções por voz
+                </span>
+                <span className="mt-1 text-[10px] uppercase tracking-wider text-white/55">
+                  Fala cada curva antes de chegar nela
+                </span>
+              </div>
+              <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={settings.voiceGuidance}
+                  onChange={(e) => updateSettings({ voiceGuidance: e.target.checked })}
+                />
+                <div className="peer h-6 w-11 rounded-full border border-white/20 bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-400 peer-checked:after:translate-x-full peer-focus:outline-none"></div>
+              </label>
+            </div>
+
+            <p className="mt-4 border-t border-white/10 pt-4 text-[10px] leading-relaxed text-white/55">
+              A busca de destinos usa o Photon (komoot) e as rotas vêm do OSRM do
+              OpenStreetMap (FOSSGIS). Os dois recebem sua posição e o destino.
+              A rota segue o modo da viagem: carro e moto usam as ruas de carro.
+            </p>
+          </div>
+        </section>
+
         {/* Rua e clima */}
         <section>
           <h3 className="mb-3 ml-2 text-[10px] font-bold uppercase tracking-widest text-white/55">Rua e clima</h3>
